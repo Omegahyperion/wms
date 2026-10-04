@@ -432,15 +432,21 @@
 
   // One shared audio player. Phones only allow sound after the user has touched the page,
   // so it is switched on at the first tap or key press (login, mode button, camera button…).
+  // iPhone (iOS 16.4+): play the beeps like media, so they are heard even when the phone is on silent.
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
   let audioCtx = null;
   function audio() {
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
+      // 'suspended', or 'interrupted' on iPhone after a call, the lock screen or another app
+      if (audioCtx.state !== 'running') audioCtx.resume();
     } catch (e) {}
     return audioCtx;
   }
-  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, audio, { passive: true }));
+  ['pointerdown', 'touchstart', 'touchend', 'click', 'keydown']
+    .forEach(ev => document.addEventListener(ev, audio, { passive: true }));
+  // Back on screen after the phone was locked or another app was used.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) audio(); });
 
   function tone(freq, ms, type, volume) {
     const ctx = audio();
