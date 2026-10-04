@@ -739,7 +739,7 @@
   // Sum of the scans already shown on screen but not yet confirmed by the server.
   function unconfirmed(key) {
     return pending.concat(inFlight)
-      .filter(j => j.applied && norm(j.ean) === key)
+      .filter(j => j.applied && !j.add && norm(j.ean) === key)
       .reduce((s, j) => s + j.d, 0);
   }
 
@@ -773,6 +773,7 @@
         loadStock(); // put the screen back in line with the sheet
       })
       .applyChanges(batch.map(j => {
+        if (j.add) return { id: j.id, add: true, ean: j.ean, name: j.name, brand: j.brand, loc: j.loc, qty: j.qty };
         const o = { id: j.id, ean: j.ean, d: j.d };
         if (j.undo) { o.undo = true; if (j.restoreLoc != null) o.restoreLoc = j.restoreLoc; }
         else o.loc = j.loc;
@@ -781,6 +782,7 @@
   }
 
   function handleResult(job, r) {
+    if (job.add) { handleAddResult(job, r); return; }
     if (r.product) {
       const key = norm(r.product.ean);
       r.product.qty += unconfirmed(key); // keep later scans that are still on their way
@@ -812,8 +814,11 @@
     google.script.run
       .withSuccessHandler(res => {
         stock = res.stock;
-        // keep scans made while loading
-        pending.concat(inFlight).filter(j => j.applied).forEach(j => {
+        // keep new products and scans made while loading
+        pending.concat(inFlight).filter(j => j.add).forEach(j => {
+          if (!stock[norm(j.ean)]) stock[norm(j.ean)] = newProduct(j);
+        });
+        pending.concat(inFlight).filter(j => j.applied && !j.add).forEach(j => {
           const p = stock[norm(j.ean)];
           if (!p) return;
           p.qty += j.d;
@@ -864,28 +869,50 @@
     if (!name) { show('err', 'Type the product name.'); $('newName').focus(); return; }
     if (!$('newLoc').value) { show('err', 'Select the raft for the new product.'); $('newLoc').focus(); return; }
     if (!(qty >= 0) || Math.floor(qty) !== qty) { show('err', 'Starting quantity must be 0 or more.'); $('newQty').focus(); return; }
-    google.script.run
-      .withSuccessHandler(res => {
-        if (res.exists) {
-          // Someone added it meanwhile: use the sheet's version.
-          stock[norm(res.product.ean)] = res.product;
-          showProduct(res.product);
-          show('err', res.error + ' Scan it again.');
-          closeNew();
-          renderOrder();
-          return;
-        }
-        if (!res.ok) { show('err', res.error); return; }
-        const p = res.product;
-        stock[norm(p.ean)] = p;
-        addRecent(recentEntry('new' + (++seq), p, 'NEW', p.qty, 0, p.qty, false));
-        showProduct(p);
-        show('ok', 'Added at the bottom of the list: ' + label(p) + ' · qty ' + p.qty + ' · raft ' + p.location);
-        closeNew();
-        renderOrder();
-      })
-      .withFailureHandler(e => show('err', 'Error: ' + e.message))
-      .addProduct(ean, name, $('newBrand').value.trim(), $('newLoc').value, qty);
+
+    // Shown at once; saved in the background in the same queue as the scans, so the
+    // product can be scanned right away and its scans reach the sheet after it.
+    const job = { id: ++seq, add: true, applied: true, ean: ean13(ean), name: name,
+                  brand: $('newBrand').value.trim(), loc: $('newLoc').value, qty: qty };
+    const p = newProduct(job);
+    stock[norm(p.ean)] = p;
+    addRecent(recentEntry(job.id, p, 'NEW', qty, 0, qty, true));
+    showProduct(p);
+    show('ok', 'Added at the bottom of the list: ' + label(p) + ' · qty ' + qty + ' · raft ' + p.location);
+    closeNew();
+    renderOrder();
+    send(job);
+  }
+
+  // EANs are stored as 13 characters; a 12-digit UPC-A code gets its leading 0 back (same as the server).
+  function ean13(ean) {
+    ean = String(ean).trim();
+    return /^\d{12}$/.test(ean) ? '0' + ean : ean;
+  }
+
+  function newProduct(job) {
+    return { ean: job.ean, name: job.name, brand: job.brand, location: job.loc, qty: job.qty };
+  }
+
+  function handleAddResult(job, r) {
+    const key = norm(job.ean);
+    if (r.ok) {
+      setRecentState(job.id, true);
+      return;
+    }
+    setRecentState(job.id, false);
+    if (r.exists && r.product) {
+      // Someone added the same EAN meanwhile: the sheet's row stays, the starting quantity was not added.
+      r.product.qty += unconfirmed(key);
+      stock[key] = r.product;
+      if (cardKey === key) showProduct(r.product);
+      show('err', 'EAN ' + job.ean + ' was already in the list (added by someone else). ' +
+                  'Starting quantity NOT added. Check the product and scan again if needed.');
+    } else {
+      show('err', 'New product NOT saved: ' + (r.error || 'unknown error') + '. Please add it again.');
+      loadStock();
+    }
+    renderOrder();
   }
 
   // ---------- COMANDA NOUA ----------
