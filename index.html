@@ -118,16 +118,16 @@
     <label for="shelf">Raft (shelf)</label>
     <select id="shelf"><option value="">— select raft —</option></select>
 
+    <div id="manualBox" hidden>
+      <label for="manualQty">Quantity to apply per scan (use a minus sign to remove, e.g. -5)</label>
+      <input id="manualQty" type="number" step="1" inputmode="numeric">
+      <div class="hint">Type the quantity, then scan. It stays for the next scans until you change it.</div>
+    </div>
+
     <label for="ean">Scan EAN</label>
     <div class="row">
       <input id="ean" inputmode="numeric" autocomplete="off" autofocus>
       <button class="btn sec cam" onclick="toggleCamera()">📷</button>
-    </div>
-
-    <div id="manualBox" hidden>
-      <label for="manualQty">Quantity to apply per scan (use a minus sign to remove, e.g. -5)</label>
-      <input id="manualQty" type="number" step="1" inputmode="numeric">
-      <div class="hint">Scan the EAN, type the quantity, press Enter.</div>
     </div>
 
     <button class="undo" id="undoStock" onclick="undoStock()">UNDO</button>
@@ -217,15 +217,45 @@
   let session = {};
   try { session = JSON.parse(localStorage.getItem('wmsSession') || '{}'); } catch (e) {}
 
-  async function apiCall(action, args, extra) {
+  // Sends one request to the API and returns its JSON answer. When Google answers with a web page
+  // instead (an error or sign-in page), the error says which page, instead of a cryptic parse error.
+  async function post(body) {
     if (API_URL.indexOf('https://') !== 0) throw new Error('API_URL is not set in index.html.');
-    // text/plain keeps this a "simple" request, which Google accepts from another website.
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ action: action, args: args, token: session.token }, extra || {}))
-    });
-    const data = await res.json();
+    let res;
+    try {
+      // text/plain keeps this a "simple" request, which Google accepts from another website.
+      res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(body),
+        cache: 'no-store'
+      });
+    } catch (e) {
+      throw new Error('No connection to Google (' + e.message + '). Check the internet connection.');
+    }
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      const title = (text.match(/<title>([^<]*)<\/title>/i) || [])[1];
+      const body1 = text.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<[^>]+>/g, ' ')
+                        .replace(/\s+/g, ' ').trim().slice(0, 160);
+      throw new Error('Google sent a page instead of data (HTTP ' + res.status + '): ' +
+                      ([(title || '').trim(), body1].filter(Boolean).join(' – ') || 'empty answer'));
+    }
+  }
+
+  async function apiCall(action, args, extra) {
+    const body = Object.assign({ action: action, args: args, token: session.token }, extra || {});
+    let data;
+    try {
+      data = await post(body);
+    } catch (e) {
+      // Loading the stock changes nothing, so it is safe to try once more after a short pause.
+      if (action !== 'getInit') throw e;
+      await new Promise(r => setTimeout(r, 1500));
+      data = await post(body);
+    }
     if (!data.ok) {
       if (data.auth) showLogin(data.error);
       throw new Error(data.error || 'Unknown error');
@@ -268,11 +298,7 @@
     $('loginBtn').disabled = true;
     $('loginMsg').textContent = 'Checking…';
     try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'login', code: code })
-      }).then(r => r.json());
+      const res = await post({ action: 'login', code: code });
       if (!res.ok) { $('loginMsg').textContent = res.error; return; }
       session = { token: res.token, user: res.user };
       try { localStorage.setItem('wmsSession', JSON.stringify(session)); } catch (e) {}
@@ -360,7 +386,7 @@
     $('manualQty').value = '';
     const labels = {
       add: '+1 per scan', remove: '−1 per scan',
-      manual: 'scan EAN, then type the quantity and press Enter',
+      manual: 'type the quantity, then scan EAN',
       order: 'COMANDA NOUA: scan the products of the order (stock is not changed)'
     };
     show('info', 'Mode: ' + labels[m]);
@@ -370,6 +396,7 @@
   function focusScan() {
     if (mode === 'order') $('orderEan').focus();
     else if (!$('shelf').value) $('shelf').focus();
+    else if (mode === 'manual' && manualQty() === null) $('manualQty').focus();
     else $('ean').focus();
   }
 
@@ -578,43 +605,42 @@
     const ean = $('ean').value.trim();
     if (!ean) return;
     if (blocked()) { $('ean').value = ''; return; }
+    $('ean').value = '';
+    let d = mode === 'add' ? 1 : -1;
     if (mode === 'manual') {
-      const p = stock[norm(ean)];
-      if (!p) {
-        $('ean').value = '';
-        askAddProduct(ean, '', $('shelf').value);
+      d = manualQty();
+      if (d === null) {
+        show('err', 'Type the quantity first (e.g. 5, or -5 to remove), then scan.');
+        $('manualQty').focus();
         return;
       }
-      showProduct(p);
-      show('info', label(p) + ' · raft ' + (p.location || '-') + ' · stock ' + p.qty + '. Now type the quantity and press Enter.');
-      okSound();
+    }
+    $('ean').focus();
+    stockScan(ean, d);
+  }
+
+  // MANUAL quantity: a non-zero whole number, or null when empty or not valid.
+  function manualQty() {
+    const raw = $('manualQty').value.trim();
+    if (raw.replace('-', '').length >= MIN_EAN_LEN) return null; // a barcode, not a quantity
+    const d = Number(raw);
+    return raw && Number.isInteger(d) && d !== 0 ? d : null;
+  }
+
+  // Enter in the quantity field: check it, then go to the scan field.
+  function manualApply() {
+    const raw = $('manualQty').value.trim();
+    if (raw.replace('-', '').length >= MIN_EAN_LEN) {
+      // A barcode scanned into the quantity field by mistake.
       $('manualQty').value = '';
+      show('err', 'That was a barcode, not a quantity. Type the quantity first, then scan.');
       $('manualQty').focus();
       return;
     }
-    $('ean').value = '';
+    const d = manualQty();
+    if (d === null) { show('err', 'Enter a non-zero whole number for the quantity.'); $('manualQty').focus(); return; }
+    show('info', 'Quantity ' + (d > 0 ? '+' : '') + d + ' set. Scan EAN.');
     $('ean').focus();
-    stockScan(ean, mode === 'add' ? 1 : -1);
-  }
-
-  function manualApply() {
-    const raw = $('manualQty').value.trim();
-    // A barcode scanned into the quantity field by mistake: treat it as the next EAN.
-    if (raw.replace('-', '').length >= MIN_EAN_LEN) {
-      $('ean').value = raw.replace('-', '');
-      $('manualQty').value = '';
-      show('err', 'That looked like a barcode, not a quantity. EAN updated; type the quantity.');
-      eanEntered();
-      return;
-    }
-    const ean = $('ean').value.trim();
-    if (!ean) { show('err', 'Scan the EAN first.'); $('ean').focus(); return; }
-    const d = parseInt(raw, 10);
-    if (!d || isNaN(d)) { show('err', 'Enter a non-zero whole number for the quantity.'); $('manualQty').focus(); return; }
-    $('ean').value = '';
-    $('manualQty').value = '';
-    $('ean').focus();
-    stockScan(ean, d);
   }
 
   function stockScan(ean, d) {
