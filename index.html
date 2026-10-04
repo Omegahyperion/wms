@@ -56,7 +56,12 @@
   .card .brand { font-size: 15px; font-weight: 600; color: #1a56c4; margin-top: 2px; }
   .card .meta { color: #555; margin-top: 4px; }
   .card .qty { font-size: 40px; font-weight: 800; margin-top: 6px; }
-  #reader { margin-top: 10px; }
+  /* Camera: a narrow strip, about as tall as a barcode, with a red aiming line */
+  #reader { position: relative; height: 110px; margin-top: 10px; overflow: hidden; border-radius: 8px; background: #000; }
+  #reader video { width: 100% !important; height: 100% !important; object-fit: cover; display: block; }
+  #reader canvas, #reader #qr-shaded-region, #reader img { display: none !important; }
+  #reader::after { content: ''; position: absolute; left: 6%; right: 6%; top: 50%; border-top: 2px solid #ff1a1a;
+                   box-shadow: 0 0 6px #ff1a1a; pointer-events: none; }
 
   /* YES / NO questions */
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
@@ -138,7 +143,7 @@
     <button class="undo" id="undoOrder" onclick="undoOrder()">UNDO</button>
   </div>
 
-  <div id="reader"></div>
+  <div id="reader" hidden></div>
   <div id="msg" class="info">Select a raft, then scan.</div>
 
   <div id="newBox" class="card" hidden>
@@ -372,6 +377,7 @@
     $('msg').className = type;
     $('msg').textContent = text;
     if (type === 'err') alarm();
+    if (type === 'ok') okSound();
   }
 
   function alarm() {
@@ -379,14 +385,36 @@
     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
   }
 
-  function beep() {
+  // One shared audio player. Phones only allow sound after the user has touched the page,
+  // so it is switched on at the first tap or key press (login, mode button, camera button…).
+  let audioCtx = null;
+  function audio() {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = ctx.createOscillator();
-      o.frequency.value = 300; o.connect(ctx.destination); o.start();
-      setTimeout(() => { o.stop(); ctx.close(); }, 250);
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) {}
+    return audioCtx;
+  }
+  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, audio, { passive: true }));
+
+  function tone(freq, ms, type, volume) {
+    const ctx = audio();
+    if (!ctx) return;
+    try {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(volume, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + ms / 1000);
+      o.connect(g); g.connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + ms / 1000);
     } catch (e) {}
   }
+
+  // Error: low buzz. Success: short high "scanner" beep.
+  function beep() { tone(220, 350, 'square', 0.25); }
+  function okSound() { tone(1800, 120, 'sine', 0.4); }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -559,6 +587,7 @@
       }
       showProduct(p);
       show('info', label(p) + ' · raft ' + (p.location || '-') + ' · stock ' + p.qty + '. Now type the quantity and press Enter.');
+      okSound();
       $('manualQty').value = '';
       $('manualQty').focus();
       return;
@@ -959,17 +988,20 @@
   let lastCode = '', lastTime = 0;
   function toggleCamera() {
     if (scanner) {
-      scanner.stop().then(() => { scanner.clear(); scanner = null; });
+      scanner.stop().then(() => { scanner.clear(); scanner = null; $('reader').hidden = true; });
       return;
     }
     if (typeof Html5Qrcode === 'undefined') { show('err', 'Camera library did not load.'); return; }
+    $('reader').hidden = false;
     scanner = new Html5Qrcode('reader', {
       formatsToSupport: [
         Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
         Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.CODE_128
-      ]
+      ],
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true } // phone's own reader: faster
     });
-    scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 260, height: 120 } }, code => {
+    // No scan box: the whole camera picture is read; the screen only shows its middle strip.
+    scanner.start({ facingMode: 'environment' }, { fps: 15 }, code => {
       const now = Date.now();
       if (code === lastCode && now - lastTime < 2000) return; // ignore the same code read twice in a row
       lastCode = code; lastTime = now;
@@ -977,7 +1009,7 @@
       if (mode === 'order') { orderScan(code); return; }
       $('ean').value = code;
       eanEntered();
-    }).catch(err => { scanner = null; show('err', 'Camera not available: ' + err); });
+    }).catch(err => { scanner = null; $('reader').hidden = true; show('err', 'Camera not available: ' + err); });
   }
 
   $('loginCode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doLogin(); } });
