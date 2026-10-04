@@ -13,9 +13,10 @@
   h1 { font-size: 20px; margin: 0 0 12px; }
   h2 { font-size: 15px; margin: 20px 0 8px; color: #555; text-transform: uppercase; letter-spacing: .04em; }
   .top { display: flex; justify-content: space-between; align-items: baseline; }
-  #sync { font-size: 13px; font-weight: 600; color: #137333; }
+  #sync { font-size: 13px; font-weight: 600; color: #137333; text-align: right; }
   #sync.saving { color: #b06000; }
   #sync.err { color: #c5221f; }
+  #verBanner { background: #c5221f; color: #fff; font-weight: 700; padding: 10px 12px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; }
   .who { font-size: 13px; color: #444; margin: -6px 0 10px; display: flex; justify-content: space-between; align-items: center; }
   .who b { color: #1a56c4; }
   .linkbtn { background: none; border: 0; color: #c5221f; font-weight: 700; font-size: 13px; cursor: pointer; padding: 4px 0; }
@@ -24,13 +25,16 @@
   #login h3 { margin: 0 0 6px; font-size: 20px; }
   #loginMsg { min-height: 22px; color: #c5221f; font-weight: 600; margin: 8px 0; }
 
-  .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
-  .modes button { border: 3px solid transparent; border-radius: 10px; padding: 14px 4px; font-size: 17px; font-weight: 700; color: #fff; cursor: pointer; opacity: .55; line-height: 1.15; }
+  .modes { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
+  .modes button { grid-column: span 2; border: 3px solid transparent; border-radius: 10px; padding: 14px 4px; font-size: 17px;
+                  font-weight: 700; color: #fff; cursor: pointer; opacity: .55; line-height: 1.15; }
+  .modes button.wide { grid-column: span 3; font-size: 15px; }
   .modes button.active { opacity: 1; border-color: #222; }
   .modes button[data-mode="add"] { background: #1e9e48; }
   .modes button[data-mode="remove"] { background: #d93025; }
   .modes button[data-mode="manual"] { background: #6b7280; }
-  .modes button[data-mode="order"] { background: #1a56c4; font-size: 14px; }
+  .modes button[data-mode="pick"] { background: #1a56c4; }
+  .modes button[data-mode="inv"] { background: #7c3aed; }
 
   label { display: block; font-size: 13px; color: #555; margin: 10px 0 4px; }
   input, select { width: 100%; font-size: 20px; padding: 12px; border: 2px solid #ccc; border-radius: 8px; background: #fff; }
@@ -42,8 +46,11 @@
   .btn { padding: 12px; font-size: 16px; border: 0; border-radius: 8px; background: #1a73e8; color: #fff; cursor: pointer; font-weight: 600; }
   .btn.sec { background: #e0e0e0; color: #222; }
   .btn.yes { background: #1e9e48; }
+  .btn.move { background: #b06000; }
+  .btn.big { padding: 16px; font-size: 18px; font-weight: 800; }
+  .btn:disabled { opacity: .45; cursor: default; }
   .cam { flex: 0 0 auto; }
-  .undo { display: block; width: 100%; margin-top: 8px; padding: 14px; font-size: 18px; font-weight: 800; letter-spacing: .06em;
+  .undo { display: block; width: 100%; margin-top: 8px; padding: 14px; font-size: 18px; font-weight: 800; letter-spacing: .04em;
           color: #fff; background: #ff1a1a; border: 0; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 0 #b80000; }
   .undo:active { transform: translateY(2px); box-shadow: none; }
   .undo:disabled { background: #f3a5a5; box-shadow: none; cursor: default; }
@@ -58,7 +65,8 @@
   .card .brand { font-size: 15px; font-weight: 600; color: #1a56c4; margin-top: 2px; }
   .card .meta { color: #555; margin-top: 4px; }
   .card .qty { font-size: 40px; font-weight: 800; margin-top: 6px; }
-  /* Camera: a narrow strip, about as tall as a barcode, with a red aiming line */
+
+  /* Camera: a strip about as tall as a barcode, with a red aiming line, and the SCAN trigger under it */
   #reader { position: relative; height: 130px; margin-top: 10px; overflow: hidden; border-radius: 8px; background: #000;
             border: 3px solid #000; transition: border-color .15s; }
   #reader.hit { border-color: #1e9e48; }
@@ -69,17 +77,26 @@
   .camtools button { background: rgba(0,0,0,.55); color: #fff; border: 1px solid rgba(255,255,255,.4); border-radius: 6px;
                      font-size: 14px; font-weight: 700; padding: 6px 9px; cursor: pointer; }
   .camtools button.on { background: #f5c400; color: #000; }
+  .scanbtn { display: block; width: 100%; margin-top: 8px; padding: 18px; font-size: 22px; font-weight: 900; letter-spacing: .08em;
+             color: #fff; background: #1e9e48; border: 0; border-radius: 10px; cursor: pointer; box-shadow: 0 3px 0 #11692f; }
+  .scanbtn:active { transform: translateY(2px); box-shadow: none; }
+  .scanbtn.busy { background: #11692f; }
 
-  /* YES / NO questions */
+  /* Questions (YES / NO, or several choices) */
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
-  .dlgbox { background: #fff; border-radius: 12px; padding: 18px; width: 100%; max-width: 440px; box-shadow: 0 8px 30px rgba(0,0,0,.3); outline: none; }
+  .dlgbox { background: #fff; border-radius: 12px; padding: 18px; width: 100%; max-width: 440px; box-shadow: 0 8px 30px rgba(0,0,0,.3); outline: none;
+            max-height: 92vh; overflow-y: auto; }
   .dlgbox.warn { border-top: 8px solid #d93025; }
   .dlgbox.ask { border-top: 8px solid #1a56c4; }
   #dlgText { font-size: 17px; line-height: 1.4; margin-bottom: 16px; }
   #dlgText .big { font-size: 30px; font-weight: 800; color: #d93025; }
   #dlgText .prod { font-weight: 700; }
   #dlgText .sub { color: #555; font-size: 14px; }
-  .dlgbox .btn { padding: 16px; font-size: 18px; font-weight: 800; }
+  #dlgText .tip { background: #fff6d6; border-left: 5px solid #f5c400; padding: 10px; border-radius: 6px; font-size: 15px; }
+  .dlgbtns { display: flex; gap: 8px; }
+  .dlgbtns > * { flex: 1; }
+  .dlgbtns.stack { flex-direction: column; }
+  .dlgbox .btn { padding: 16px; font-size: 17px; font-weight: 800; }
 
   #recent { list-style: none; margin: 0; padding: 0; }
   #recent li { display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.08); border-left: 6px solid #6b7280; }
@@ -95,22 +112,36 @@
   #recent .qa b { font-size: 18px; color: #222; }
   .empty { color: #888; font-size: 14px; }
 
+  /* Picking and inventory tables */
   .otable-wrap { overflow-x: auto; }
   .otable { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
   .otable th { background: #1a56c4; color: #fff; font-size: 13px; text-align: left; padding: 8px; }
+  .otable.inv th { background: #7c3aed; }
   .otable td { padding: 8px; border-top: 1px solid #eee; font-size: 14px; vertical-align: top; }
   .otable td.raft { font-size: 20px; font-weight: 800; white-space: nowrap; }
   .otable td.num { text-align: right; font-weight: 700; white-space: nowrap; }
   .otable tr.warn td { background: #fce8e6; }
+  .otable tr.done td { background: #e6f4ea; color: #4a6b52; }
+  .otable tr.cur td { background: #fff6d6; }
+  .otable tr.other td { background: #f1f1f1; color: #777; }
   .otable .ean { font-size: 12px; color: #666; }
   .otable .br { font-size: 12px; color: #1a56c4; font-weight: 600; }
+  .otable .plus { color: #1e9e48; } .otable .minus { color: #d93025; }
   .osum { margin: 8px 0; font-weight: 600; color: #444; }
+  #pickTarget { border: 4px solid #1a56c4; transition: background .2s; }
+  #pickTarget .raft { font-size: 44px; font-weight: 900; color: #1a56c4; line-height: 1; }
+  #pickTarget .what { font-size: 18px; font-weight: 700; margin-top: 6px; }
+  #pickTarget .need { font-size: 22px; font-weight: 800; margin-top: 6px; }
+  #pickTarget.good { background: #c8f0d4; }
+  #pickTarget.bad { background: #ffc9c4; }
+  #pickTarget.complete { border-color: #1e9e48; }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="top"><h1>Mini WMS</h1><span id="sync" class="saving">Loading stock…</span></div>
+  <div id="verBanner" hidden></div>
   <div class="who"><span>Logged in as <b id="whoName">-</b></span>
     <span><button class="linkbtn sound" onclick="testSound()">🔊 Test sound</button>
     <button class="linkbtn" onclick="logout()">Logout</button></span></div>
@@ -119,7 +150,8 @@
     <button data-mode="add" class="active" onclick="setMode('add')">+1</button>
     <button data-mode="remove" onclick="setMode('remove')">−1</button>
     <button data-mode="manual" onclick="setMode('manual')">MANUAL</button>
-    <button data-mode="order" onclick="setMode('order')">COMANDA NOUA</button>
+    <button data-mode="pick" class="wide" onclick="setMode('pick')">PICKING MODE</button>
+    <button data-mode="inv" class="wide" onclick="setMode('inv')">MOD INVENTAR</button>
   </div>
 
   <!-- +1 / -1 / MANUAL -->
@@ -130,7 +162,7 @@
     <div id="manualBox" hidden>
       <label for="manualQty">Quantity to apply per scan (use a minus sign to remove, e.g. -5)</label>
       <input id="manualQty" type="number" step="1" inputmode="numeric">
-      <div class="hint">Type the quantity, then scan. It stays for the next scans until you change it.</div>
+      <div class="hint">Type the quantity, then scan. It is cleared after each successful scan.</div>
     </div>
 
     <label for="ean">Scan EAN</label>
@@ -138,28 +170,54 @@
       <input id="ean" inputmode="numeric" autocomplete="off" autofocus>
       <button class="btn sec cam" onclick="toggleCamera()">📷</button>
     </div>
-
-    <button class="undo" id="undoStock" onclick="undoStock()">UNDO</button>
+    <div class="camslot"></div>
+    <button class="undo" id="undoStock" onclick="undoStock()">UNDO LAST SCAN</button>
   </div>
 
-  <!-- COMANDA NOUA -->
-  <div id="orderPanel" hidden>
-    <label for="orderEan">Scan EAN from the packing list</label>
+  <!-- PICKING MODE -->
+  <div id="pickPanel" hidden>
+    <div id="pickTarget" class="card" hidden>
+      <div class="raft" id="ptRaft"></div>
+      <div class="what" id="ptWhat"></div>
+      <div class="need" id="ptNeed"></div>
+    </div>
+    <label for="pickEan" id="pickLabel">Scan the products from the packing list</label>
     <div class="row">
-      <input id="orderEan" inputmode="numeric" autocomplete="off">
+      <input id="pickEan" inputmode="numeric" autocomplete="off">
       <button class="btn sec cam" onclick="toggleCamera()">📷</button>
     </div>
-    <button class="undo" id="undoOrder" onclick="undoOrder()">UNDO</button>
+    <div class="camslot"></div>
+    <button class="undo" id="undoPick" onclick="undoPick()">UNDO LAST SCAN</button>
   </div>
 
-  <div id="reader" hidden>
-    <video id="camVideo" playsinline muted autoplay></video>
-    <div class="camtools">
-      <button id="zoomBtn" type="button" hidden onclick="nextZoom()">1×</button>
-      <button id="torchBtn" type="button" hidden onclick="toggleTorch()">🔦</button>
-      <button id="switchBtn" type="button" hidden onclick="switchCamera()">🔄</button>
+  <!-- MOD INVENTAR -->
+  <div id="invPanel" hidden>
+    <label for="invShelf">Raft to count</label>
+    <select id="invShelf"><option value="">— select raft —</option></select>
+    <label for="invQty">Quantity for the next scan (empty = 1 piece)</label>
+    <input id="invQty" type="number" min="1" step="1" inputmode="numeric">
+    <label for="invEan">Scan every product on this raft</label>
+    <div class="row">
+      <input id="invEan" inputmode="numeric" autocomplete="off">
+      <button class="btn sec cam" onclick="toggleCamera()">📷</button>
     </div>
+    <div class="camslot"></div>
+    <button class="undo" id="undoInv" onclick="undoInv()">UNDO LAST SCAN</button>
   </div>
+
+  <!-- camera + SCAN trigger; moved under the scan field of the active mode -->
+  <div id="camBlock">
+    <div id="reader" hidden>
+      <video id="camVideo" playsinline muted autoplay></video>
+      <div class="camtools">
+        <button id="zoomBtn" type="button" hidden onclick="nextZoom()">1×</button>
+        <button id="torchBtn" type="button" hidden onclick="toggleTorch()">🔦</button>
+        <button id="switchBtn" type="button" hidden onclick="switchCamera()">🔄</button>
+      </div>
+    </div>
+    <button id="scanBtn" class="scanbtn" type="button" onclick="scanPress()">SCAN</button>
+  </div>
+
   <div id="msg" class="info">Select a raft, then scan.</div>
 
   <div id="newBox" class="card" hidden>
@@ -187,15 +245,38 @@
     </div>
   </div>
 
-  <div id="orderArea" hidden>
-    <div class="osum" id="orderSum"></div>
+  <div id="pickArea" hidden>
+    <div class="osum" id="pickSum"></div>
     <div class="otable-wrap"><table class="otable">
-      <thead><tr><th>Raft</th><th>Produs</th><th style="text-align:right">Buc</th><th style="text-align:right">Stoc</th></tr></thead>
-      <tbody id="orderRows"></tbody>
+      <thead><tr><th>Raft</th><th>Produs</th><th style="text-align:right" id="pickColQty">Buc</th><th style="text-align:right">Stoc</th></tr></thead>
+      <tbody id="pickRows"></tbody>
     </table></div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn" id="saveOrderBtn" onclick="saveOrder()">Save order</button>
-      <button class="btn sec" id="clearOrderBtn" onclick="clearOrder()">Clear order</button>
+    <div class="row" style="margin-top:10px" id="pickListBtns">
+      <button class="btn yes big" onclick="startPicking()">START PICKING</button>
+      <button class="btn sec" id="clearPickBtn" onclick="clearPick()">Clear order</button>
+    </div>
+    <div style="margin-top:10px" id="pickPickBtns" hidden>
+      <button class="btn yes big" style="width:100%" onclick="finishPick()">FINISH ORDER – remove from stock</button>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sec" onclick="backToList()">Back to the list</button>
+        <button class="btn sec" id="cancelPickBtn" onclick="clearPick()">Cancel order</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="invArea" hidden>
+    <div class="osum" id="invSum"></div>
+    <div class="otable-wrap"><table class="otable inv">
+      <thead id="invHead"></thead>
+      <tbody id="invRows"></tbody>
+    </table></div>
+    <div class="row" style="margin-top:10px" id="invCountBtns">
+      <button class="btn yes big" onclick="finishInv()">FINISH COUNT</button>
+      <button class="btn sec" id="clearInvBtn" onclick="clearInv()">Clear count</button>
+    </div>
+    <div class="row" style="margin-top:10px" id="invReviewBtns" hidden>
+      <button class="btn yes big" id="applyInvBtn" onclick="applyInv()">APPLY CORRECTIONS</button>
+      <button class="btn sec" onclick="backToCount()">Back to counting</button>
     </div>
   </div>
 
@@ -214,32 +295,40 @@
   </div>
 </div>
 
-<!-- question with YES / NO -->
+<!-- questions -->
 <div id="dlg" class="overlay" hidden>
   <div id="dlgBox" class="dlgbox" tabindex="-1">
     <div id="dlgText"></div>
-    <div class="row">
-      <button class="btn yes" id="dlgYes">YES</button>
-      <button class="btn sec" id="dlgNo">NO</button>
-    </div>
+    <div id="dlgBtns" class="dlgbtns"></div>
   </div>
 </div>
 
 <script>
+  const $ = id => document.getElementById(id);
+
+  // Version of this page. The server (Code.gs) has its own WMS_VERSION; when they differ,
+  // a red banner tells which side needs updating.
+  const PAGE_VERSION = 20;
+
   // ---------- connection to the Google Apps Script API ----------
-  // Paste the Web app URL of the API project (ends with /exec) between the quotes.
+  // Web app URL of the API project (ends with /exec).
   const API_URL = 'https://script.google.com/macros/s/AKfycbxPKIbG2i6kMiKKyesQB9onB0_GBSy6O8pM9bRBgm94qbJs-gVWw9xgoP0vECSStmc/exec';
 
   let session = {};
   try { session = JSON.parse(localStorage.getItem('wmsSession') || '{}'); } catch (e) {}
 
-  // Sends one request to the API and returns its JSON answer. When Google answers with a web page
-  // instead (an error or sign-in page), the error says which page, instead of a cryptic parse error.
   // Some iPhones lose the data of a POST on Google's redirect, and the API only sees a page visit
   // (it answers "Mini WMS API is running."). Nothing was done in that case, so the same request
   // is sent again as GET with the data in the address; the phone then keeps using GET.
   let useGet = false;
   try { useGet = localStorage.getItem('wmsUseGet') === '1'; } catch (e) {}
+
+  // Errors from the connection or Google's own error pages: the request can be tried again later.
+  function transportError(text) {
+    const err = new Error(text);
+    err.transport = true;
+    return err;
+  }
 
   async function sendRequest(body, asGet) {
     try {
@@ -254,12 +343,11 @@
         cache: 'no-store'
       });
     } catch (e) {
-      throw new Error('No connection to Google (' + e.message + '). Check the internet connection.');
+      throw transportError('No connection to Google (' + e.message + ').');
     }
   }
 
   async function post(body) {
-    if (API_URL.indexOf('https://') !== 0) throw new Error('API_URL is not set in index.html.');
     let res = await sendRequest(body, useGet);
     let text = await res.text();
     if (!useGet && text.indexOf('Mini WMS API is running') >= 0) {
@@ -274,13 +362,13 @@
       const title = (text.match(/<title>([^<]*)<\/title>/i) || [])[1];
       const body1 = text.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<[^>]+>/g, ' ')
                         .replace(/\s+/g, ' ').trim().slice(0, 160);
-      throw new Error('Google sent a page instead of data (HTTP ' + res.status + '): ' +
-                      ([(title || '').trim(), body1].filter(Boolean).join(' – ') || 'empty answer'));
+      throw transportError('Google sent a page instead of data (HTTP ' + res.status + '): ' +
+                           ([(title || '').trim(), body1].filter(Boolean).join(' – ') || 'empty answer'));
     }
   }
 
-  async function apiCall(action, args, extra) {
-    const body = Object.assign({ action: action, args: args, token: session.token }, extra || {});
+  async function apiCall(action, args) {
+    const body = { action: action, args: args, token: session.token };
     let data;
     try {
       data = await post(body);
@@ -293,7 +381,9 @@
     if (!data.ok) {
       if (data.auth) showLogin(data.error);
       const err = new Error(data.error || 'Unknown error');
-      err.auth = !!data.auth; // logged out: retrying would not help
+      err.auth = !!data.auth;
+      // Google busy with other scans: nothing was written yet, so it is safe to try again.
+      err.transport = /lock/i.test(data.error || '');
       throw err;
     }
     if (data.user && data.user !== session.user) { // name corrected in the employee list
@@ -303,7 +393,7 @@
     return data;
   }
 
-  // Same calling style as google.script.run inside Apps Script, so the rest of the page is unchanged.
+  // Same calling style as google.script.run inside Apps Script.
   function runner(onOk, onFail) {
     return new Proxy({}, {
       get(_, name) {
@@ -352,18 +442,25 @@
     const token = session.token;
     if (token) fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                                 body: JSON.stringify({ action: 'logout', token: token }) }).catch(() => {});
+    stopCamera();
     stopApp();
     showLogin('Logged out.');
   }
 
+  // Battery: the stock list is reloaded every 2 minutes, and only while the page is on screen.
+  const REFRESH_MS = 120000;
   let refreshTimer = null;
+  let lastLoad = 0;
+
   function startApp() {
     $('whoName').textContent = session.user || '-';
     loadStock();
     clearInterval(refreshTimer);
     refreshTimer = setInterval(() => {
+      if (document.hidden) return;
       if (!pending.length && !inFlight.length && $('newBox').hidden && $('dlg').hidden && $('login').hidden) loadStock();
     }, REFRESH_MS);
+    flush(); // scans kept on the phone from before (offline or page closed) are sent now
     focusScan();
   }
 
@@ -378,27 +475,26 @@
     $('whoName').textContent = '-';
   }
 
-  let mode = 'add';
-  const $ = id => document.getElementById(id);
-
+  // ---------- state ----------
   // The whole stock list is kept in the page, so a scan shows its result instantly.
-  // Scans are saved to the sheet in the background, several at once, in order;
+  // Changes are saved to the sheet in the background, several at once, in order;
   // the sheet stays the source of truth and corrects the screen if needed.
+  let mode = 'add';
   let stock = {};          // normalized EAN -> {ean, name, brand, location, qty}
   let recent = [];         // last changes shown at the bottom
-  const pending = [];      // scans waiting to be sent
-  let inFlight = [];       // scans currently being saved
+  const pending = [];      // changes waiting to be sent
+  let inFlight = [];       // changes being sent now
+  let inFlightReqId = null;
   let seq = 0;
   let cardKey = null;      // EAN shown in the product card
+  let serverVersion = null;
   const norm = e => String(e).trim().replace(/^0+/, '');
   const sameShelf = (a, b) => String(a).trim().toUpperCase() === String(b).trim().toUpperCase();
+  const byShelf = (a, b) => (a || '~').localeCompare(b || '~', undefined, { numeric: true });
   const clock = () => new Date().toTimeString().slice(0, 8);
-  const REFRESH_MS = 60000; // reload the stock list when idle, to see edits made by others
   const UNDO_MAX = 10;
 
   let undoStack = [];      // stock scans that can be undone: {id, ean, d, locSet, prevLoc}
-  let order = {};          // COMANDA NOUA: normalized EAN -> {ean, count}
-  let orderUndo = [];      // keys of the last order scans
 
   // Auto-apply: a scanner that ends with Enter applies at once; without Enter,
   // the code is applied after a short pause once it looks like a full barcode.
@@ -406,31 +502,68 @@
   const MIN_EAN_LEN = 8;
   let autoTimer = null;
 
+  function load(key, fallback) {
+    try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return v == null ? fallback : v; } catch (e) { return fallback; }
+  }
+  function keep(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+  }
+
+  // Changes not yet confirmed by the server are kept on the phone, so they survive a dropped
+  // connection, a closed page or a phone restart, and are sent as soon as possible.
+  function saveQueue() {
+    keep('wmsQueue', { seq: seq, pending: pending, inFlight: inFlight, reqId: inFlightReqId });
+  }
+  function restoreQueue() {
+    const q = load('wmsQueue', null);
+    if (!q) return;
+    seq = Math.max(seq, q.seq || 0);
+    (q.pending || []).forEach(j => pending.push(j));
+    inFlight = q.inFlight || [];
+    inFlightReqId = inFlight.length ? (q.reqId || newReqId()) : null;
+  }
+
   // ---------- screen helpers ----------
+
+  const MODE_PANEL = { add: 'stockPanel', remove: 'stockPanel', manual: 'stockPanel', pick: 'pickPanel', inv: 'invPanel' };
 
   function setMode(m) {
     mode = m;
     document.querySelectorAll('.modes button').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
-    const isOrder = m === 'order';
-    $('stockPanel').hidden = isOrder;
-    $('stockArea').hidden = isOrder;
-    $('orderPanel').hidden = !isOrder;
-    $('orderArea').hidden = !isOrder;
+    const stockMode = MODE_PANEL[m] === 'stockPanel';
+    $('stockPanel').hidden = !stockMode;
+    $('stockArea').hidden = !stockMode;
+    $('pickPanel').hidden = m !== 'pick';
+    $('pickArea').hidden = m !== 'pick';
+    $('invPanel').hidden = m !== 'inv';
+    $('invArea').hidden = m !== 'inv';
     $('manualBox').hidden = m !== 'manual';
     $('ean').value = '';
     $('manualQty').value = '';
+    placeCamera();
     const labels = {
       add: '+1 per scan', remove: '−1 per scan',
       manual: 'type the quantity, then scan EAN',
-      order: 'COMANDA NOUA: scan the products of the order (stock is not changed)'
+      pick: pick.phase === 'pick' ? 'PICKING: go raft by raft and scan each product you take'
+                                  : 'PICKING MODE: scan the packing list, then press START PICKING',
+      inv: 'MOD INVENTAR: choose the raft, scan everything on it, then press FINISH COUNT'
     };
     show('info', 'Mode: ' + labels[m]);
+    renderPick();
+    renderInv();
     focusScan();
   }
 
+  // The camera strip and SCAN button sit directly under the scan field of the active mode.
+  function placeCamera() {
+    const slot = document.querySelector('#' + MODE_PANEL[mode] + ' .camslot');
+    if (slot && $('camBlock').parentNode !== slot) slot.appendChild($('camBlock'));
+  }
+
   function focusScan() {
-    if (mode === 'order') $('orderEan').focus();
-    else if (!$('shelf').value) $('shelf').focus();
+    if (mode === 'pick') { $('pickEan').focus(); return; }
+    if (mode === 'inv') { (inv.shelf ? $('invEan') : $('invShelf')).focus(); return; }
+    if (!$('shelf').value) $('shelf').focus();
     else if (mode === 'manual' && manualQty() === null) $('manualQty').focus();
     else $('ean').focus();
   }
@@ -448,10 +581,12 @@
   }
 
   // One shared audio player. Phones only allow sound after the user has touched the page,
-  // so it is switched on at the first tap or key press (login, mode button, camera button…).
+  // so it is switched on at every tap or key press. To save battery it is paused when no
+  // sound was played for 20 seconds.
   // iPhone (iOS 16.4+): play the beeps like media, so they are heard even when the phone is on silent.
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
   let audioCtx = null;
+  let audioIdle = null;
   function audio() {
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -462,25 +597,28 @@
   }
   ['pointerdown', 'touchstart', 'touchend', 'click', 'keydown']
     .forEach(ev => document.addEventListener(ev, audio, { passive: true }));
-  // Back on screen after the phone was locked or another app was used.
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) audio(); });
 
   function tone(freq, ms, type, volume) {
     const ctx = audio();
     if (!ctx) return;
-    try {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = type;
-      o.frequency.value = freq;
-      // Full volume for most of the tone, then a short fade (avoids a click at the end).
-      const t = ctx.currentTime, end = t + ms / 1000;
-      g.gain.setValueAtTime(volume, t);
-      g.gain.setValueAtTime(volume, end - 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, end);
-      o.connect(g); g.connect(ctx.destination);
-      o.start(t);
-      o.stop(end);
-    } catch (e) {}
+    const play = () => {
+      try {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = type;
+        o.frequency.value = freq;
+        // Full volume for most of the tone, then a short fade (avoids a click at the end).
+        const t = ctx.currentTime, end = t + ms / 1000;
+        g.gain.setValueAtTime(volume, t);
+        g.gain.setValueAtTime(volume, end - 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, end);
+        o.connect(g); g.connect(ctx.destination);
+        o.start(t);
+        o.stop(end);
+      } catch (e) {}
+    };
+    if (ctx.state === 'running') play(); else ctx.resume().then(play).catch(() => {});
+    clearTimeout(audioIdle);
+    audioIdle = setTimeout(() => { try { if (audioCtx && audioCtx.state === 'running') audioCtx.suspend(); } catch (e) {} }, 20000);
   }
 
   // Error: low buzz. Success: loud high "scanner" beep (around 2.7 kHz, where the ear and
@@ -508,11 +646,11 @@
   }
 
   function fillShelves(list) {
-    ['shelf', 'newLoc'].forEach(id => {
-      const sel = $(id), keep = sel.value;
+    ['shelf', 'newLoc', 'invShelf'].forEach(id => {
+      const sel = $(id), keepValue = sel.value || (id === 'invShelf' ? inv.shelf : '');
       sel.innerHTML = '<option value="">— select raft —</option>' +
         list.map(s => '<option value="' + esc(s) + '">' + esc(s) + '</option>').join('');
-      if (keep) setSelect(sel, keep);
+      if (keepValue) setSelect(sel, keepValue);
     });
     markShelf();
   }
@@ -527,7 +665,10 @@
     sel.value = value;
   }
 
-  function markShelf() { $('shelf').classList.toggle('missing', !$('shelf').value); }
+  function markShelf() {
+    $('shelf').classList.toggle('missing', !$('shelf').value);
+    $('invShelf').classList.toggle('missing', !$('invShelf').value);
+  }
 
   function showProduct(p) {
     cardKey = norm(p.ean);
@@ -552,18 +693,19 @@
     renderRecent();
   }
 
+  let syncNote = '';
   function setSync() {
     const n = pending.length + inFlight.length;
-    $('sync').className = n ? 'saving' : '';
-    $('sync').textContent = n ? 'Saving ' + n + '…' : '✓ Saved';
+    $('sync').className = n ? (syncNote ? 'err' : 'saving') : '';
+    $('sync').textContent = n ? (syncNote || 'Saving ' + n + '…') : '✓ Saved';
   }
 
   function renderRecent() {
     if (!recent.length) { $('recent').innerHTML = '<li class="empty">No stock changes yet.</li>'; return; }
     $('recent').innerHTML = recent.map(r => {
       // change is null for a paste in the sheet, where the old quantity is unknown
-      const cls = (r.change == null ? '' : r.change > 0 ? 'in' : 'out') + (r.pending ? ' pending' : '');
-      const chg = r.change == null ? '✎' : (r.change > 0 ? '+' : '') + r.change;
+      const cls = (r.change == null || r.change === 0 ? '' : r.change > 0 ? 'in' : 'out') + (r.pending ? ' pending' : '');
+      const chg = r.change == null ? '✎' : r.type === 'MOVE' ? '⇄' : (r.change > 0 ? '+' : '') + r.change;
       return '<li class="' + cls + '">' +
         '<div class="chg">' + esc(chg) + '</div>' +
         '<div class="info"><div class="nm">' + esc(r.name || r.ean) + (r.brand ? ' · ' + esc(r.brand) : '') + '</div>' +
@@ -579,10 +721,10 @@
   }
 
   function updateUndoButtons() {
-    $('undoStock').textContent = 'UNDO' + (undoStack.length ? ' (' + undoStack.length + ')' : '');
-    $('undoStock').disabled = !undoStack.length;
-    $('undoOrder').textContent = 'UNDO' + (orderUndo.length ? ' (' + orderUndo.length + ')' : '');
-    $('undoOrder').disabled = !orderUndo.length;
+    [['undoStock', undoStack.length], ['undoPick', pick.undo.length], ['undoInv', inv.undo.length]].forEach(([id, n]) => {
+      $(id).textContent = 'UNDO LAST SCAN' + (n ? ' (' + n + ')' : '');
+      $(id).disabled = !n;
+    });
   }
 
   function pushUndo(entry) {
@@ -596,27 +738,40 @@
     updateUndoButtons();
   }
 
-  // ---------- YES / NO questions ----------
+  function twoTap(btnId, normalText, action) {
+    const b = $(btnId);
+    if (!b.dataset.armed) {
+      b.dataset.armed = '1';
+      b.textContent = 'Tap again to confirm';
+      setTimeout(() => { delete b.dataset.armed; b.textContent = normalText; }, 3000);
+      return;
+    }
+    delete b.dataset.armed;
+    b.textContent = normalText;
+    action();
+  }
 
-  let dlgHandlers = null;
+  // ---------- questions ----------
 
-  function ask(kind, html, yesLabel, noLabel, onYes, onNo) {
+  // buttons: [{ label, cls, fn }]
+  function ask(kind, html, buttons) {
     clearTimeout(autoTimer);
     $('dlgBox').className = 'dlgbox ' + kind;
     $('dlgText').innerHTML = html;
-    $('dlgYes').textContent = yesLabel;
-    $('dlgNo').textContent = noLabel;
-    dlgHandlers = { yes: onYes, no: onNo };
+    const box = $('dlgBtns');
+    box.innerHTML = '';
+    box.classList.toggle('stack', buttons.length > 2);
+    buttons.forEach(b => {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'btn ' + (b.cls || '');
+      el.textContent = b.label;
+      el.addEventListener('click', () => { $('dlg').hidden = true; if (b.fn) b.fn(); });
+      box.appendChild(el);
+    });
     $('dlg').hidden = false;
     $('dlgBox').focus(); // keeps scanner input away from the fields while the question is open
     alarm();
-  }
-
-  function answer(which) {
-    const h = dlgHandlers;
-    dlgHandlers = null;
-    $('dlg').hidden = true;
-    if (h && h[which]) h[which]();
   }
 
   // A question or the new-product form is open: scans are not accepted until it is answered.
@@ -626,35 +781,45 @@
     return false;
   }
 
+  // New features need the new server code; a clear message instead of a confusing error.
+  function serverReady() {
+    if (serverVersion != null && serverVersion >= PAGE_VERSION) return true;
+    show('err', 'The server is outdated for this feature: deploy the latest Code.gs and Api.gs (New version) first.');
+    return false;
+  }
+
   function askAddProduct(ean, qty, loc) {
     ask('ask',
       'EAN <span class="prod">' + esc(ean) + '</span> is <b>not in the stock list</b>.<br><br>' +
       'Add it at the bottom of the list?',
-      'YES, add it', 'NO',
-      () => openNew(ean, qty, loc),
-      () => { show('info', 'Not added. EAN ' + ean + ' was ignored.'); focusScan(); });
+      [{ label: 'YES, add it', cls: 'yes', fn: () => openNew(ean, qty, loc) },
+       { label: 'NO', cls: 'sec', fn: () => { show('info', 'Not added. EAN ' + ean + ' was ignored.'); focusScan(); } }]);
   }
 
-  function askChangeShelf(p, selected) {
+  function askWrongShelf(p, selected, d) {
     ask('warn',
       '<span class="prod">' + esc(p.name || '(no name)') + '</span>' +
-      (p.brand ? ' · ' + esc(p.brand) : '') + '<div class="sub">EAN ' + esc(p.ean) + '</div><br>' +
-      'is stored on raft <span class="big">' + esc(p.location) + '</span><br>' +
-      'but raft <b>' + esc(selected) + '</b> is selected.<br><br>' +
-      'Change the raft to <b>' + esc(p.location) + '</b> and rescan the product?',
-      'YES, change to ' + p.location, 'NO',
-      () => {
-        setSelect($('shelf'), p.location.trim());
-        markShelf();
-        show('info', 'Raft ' + p.location + ' selected. Rescan the product.');
-        $('ean').focus();
-      },
-      () => { show('err', 'Scan refused: ' + (p.name || p.ean) + ' belongs on raft ' + p.location + '.'); focusScan(); });
+      (p.brand ? ' · ' + esc(p.brand) : '') + '<div class="sub">EAN ' + esc(p.ean) + ' · stoc ' + p.qty + '</div><br>' +
+      'Raft original: <span class="big">' + esc(p.location) + '</span> &nbsp; Raft selectat: <b>' + esc(selected) + '</b><br><br>' +
+      '<div class="tip">Acest produs se află deja la alt raft. Poți alege să muți acest produs la raftul original și îți voi ' +
+      'seta, mai sus, raftul original, iar tu <b>RESCANEZI</b> acum <b>SAU</b> poți alege să aduci în noul raft toată ' +
+      'cantitatea din acest produs.</div>',
+      [{ label: 'Setează raftul original ' + p.location + ' – apoi RESCANEZ', cls: 'yes', fn: () => {
+           setSelect($('shelf'), p.location.trim());
+           markShelf();
+           show('info', 'Raftul ' + p.location + ' a fost setat mai sus. RESCANEAZĂ produsul acum.');
+           $('ean').focus();
+         } },
+       { label: 'Adu toată cantitatea în raftul ' + selected, cls: 'move', fn: () => moveProduct(p, selected, d) },
+       { label: 'Anulează', cls: 'sec', fn: () => {
+           show('err', 'Scan refused: ' + (p.name || p.ean) + ' belongs on raft ' + p.location + '.');
+           focusScan();
+         } }]);
   }
 
   // ---------- +1 / -1 / MANUAL ----------
 
-  // Called when the EAN field holds a complete code (Enter, Tab or auto-delay).
+  // Called when the EAN field holds a complete code (Enter, Tab, auto-delay or camera).
   function eanEntered() {
     clearTimeout(autoTimer);
     const ean = $('ean').value.trim();
@@ -671,11 +836,14 @@
       }
     }
     $('ean').focus();
-    if (stockScan(ean, d) && mode === 'manual') {
-      // Done: empty the quantity so the next product needs its own quantity.
-      $('manualQty').value = '';
-      $('manualQty').focus();
-    }
+    if (stockScan(ean, d)) afterManualScan();
+  }
+
+  // MANUAL: the quantity is used for one scan only.
+  function afterManualScan() {
+    if (mode !== 'manual') return;
+    $('manualQty').value = '';
+    $('manualQty').focus();
   }
 
   // MANUAL quantity: a non-zero whole number, or null when empty or not valid.
@@ -702,41 +870,64 @@
     $('ean').focus();
   }
 
+  // Returns true when the scan was accepted.
   function stockScan(ean, d) {
-    if (blocked()) return;
+    if (blocked()) return false;
     const sel = $('shelf').value;
-    if (!sel) { show('err', 'Select a raft first.'); markShelf(); $('shelf').focus(); return; }
+    if (!sel) { show('err', 'Select a raft first.'); markShelf(); $('shelf').focus(); return false; }
 
     const p = stock[norm(ean)];
     if (!p) {
       askAddProduct(ean, d > 0 ? d : 0, sel);
-      return;
+      return false;
     }
-
-    const job = { id: ++seq, ean: p.ean, d: d, loc: sel, applied: false };
-    const before = p.qty, after = before + d;
     if (p.location.trim() && !sameShelf(p.location, sel)) {
       showProduct(p);
       show('err', 'Wrong raft: ' + label(p) + ' is stored on raft ' + p.location + '.');
-      askChangeShelf(p, sel);
-    } else if (after < 0) {
-      showProduct(p);
-      show('err', label(p) + ': ' + (before === 0 ? 'stock is already 0, nothing to remove.' : 'only ' + before + ' in stock, cannot remove ' + (-d) + '.'));
-    } else {
-      const locSet = !p.location.trim();
-      job.locSet = locSet;
-      if (locSet) p.location = sel;
-      p.qty = after;
-      job.applied = true;
-      pushUndo({ id: job.id, ean: p.ean, d: d, locSet: locSet, prevLoc: '' });
-      showProduct(p);
-      show('ok', (d > 0 ? '+' : '') + d + ' → ' + label(p) + ' · now ' + after +
-                 (locSet ? ' · raft ' + sel + ' assigned' : ''));
-      addRecent(recentEntry(job.id, p, d > 0 ? 'IN' : 'OUT', d, before, after, true));
+      send({ id: ++seq, ean: p.ean, d: d, loc: sel, applied: false }); // logged as REJECTED
+      askWrongShelf(p, sel, d);
+      return false;
     }
-    // Every scan of a known product goes to the server, so refused scans are logged too.
+    if (p.qty + d < 0) {
+      showProduct(p);
+      show('err', label(p) + ': ' + (p.qty === 0 ? 'stock is already 0, nothing to remove.' : 'only ' + p.qty + ' in stock, cannot remove ' + (-d) + '.'));
+      send({ id: ++seq, ean: p.ean, d: d, loc: sel, applied: false }); // logged as REJECTED
+      return false;
+    }
+    applyStockScan(p, d, sel, '');
+    return true;
+  }
+
+  function applyStockScan(p, d, sel, prefix) {
+    const job = { id: ++seq, ean: p.ean, d: d, loc: sel, applied: true };
+    const before = p.qty, after = before + d;
+    const locSet = !p.location.trim();
+    job.locSet = locSet;
+    if (locSet) p.location = sel;
+    p.qty = after;
+    pushUndo({ id: job.id, ean: p.ean, d: d, locSet: locSet, prevLoc: '' });
+    showProduct(p);
+    show('ok', prefix + (d > 0 ? '+' : '') + d + ' → ' + label(p) + ' · now ' + after +
+               (locSet ? ' · raft ' + sel + ' assigned' : ''));
+    addRecent(recentEntry(job.id, p, d > 0 ? 'IN' : 'OUT', d, before, after, true));
     send(job);
-    return job.applied; // true when the scan was accepted
+  }
+
+  // Wrong-shelf question, option 2: the whole quantity goes to the selected shelf, then the scan counts there.
+  function moveProduct(p, toShelf, d) {
+    if (!serverReady()) return;
+    const from = p.location;
+    const job = { id: ++seq, move: true, ean: p.ean, loc: toShelf, prevLoc: from, locSet: true, applied: true };
+    p.location = toShelf;
+    addRecent(recentEntry(job.id, p, 'MOVE', 0, from, toShelf, true));
+    send(job);
+    if (p.qty + d < 0) {
+      showProduct(p);
+      show('err', 'Moved to raft ' + toShelf + ', but only ' + p.qty + ' in stock: cannot remove ' + (-d) + '.');
+      return;
+    }
+    applyStockScan(p, d, toShelf, 'Moved ' + from + ' → ' + toShelf + ' (whole quantity) · ');
+    afterManualScan();
   }
 
   function undoStock() {
@@ -766,20 +957,23 @@
     focusScan();
   }
 
+  // ---------- saving to the sheet ----------
+
   function send(job) {
     pending.push(job);
+    saveQueue();
     setSync();
     flush();
   }
 
-  // Sum of the scans already shown on screen but not yet confirmed by the server.
+  // Quantity change of the changes shown on screen but not yet confirmed by the server.
   function unconfirmed(key) {
     return pending.concat(inFlight)
-      .filter(j => j.applied && !j.add && norm(j.ean) === key)
+      .filter(j => j.applied && typeof j.d === 'number' && norm(j.ean) === key)
       .reduce((s, j) => s + j.d, 0);
   }
 
-  // Shelf the product will have once the unconfirmed scans are saved (null = no change).
+  // Shelf the product will have once the unconfirmed changes are saved (null = no change).
   function unconfirmedLoc(key) {
     let loc = null;
     pending.concat(inFlight).forEach(j => {
@@ -789,58 +983,100 @@
     return loc;
   }
 
-  function flush() {
-    if (inFlight.length || !pending.length) return;
-    inFlight = pending.splice(0, pending.length);
-    sendBatch(inFlight, newReqId(), 0);
-  }
-
-  // Waits before each automatic new attempt when Google sends an error page or the connection drops.
-  const RETRY_DELAYS_MS = [1000, 3000, 6000];
+  // Waits between attempts when there is no connection or Google sends an error page;
+  // after the last one it keeps trying every 15 seconds until it works.
+  const RETRY_DELAYS_MS = [1000, 3000, 6000, 10000];
+  let sending = false, sendTimer = null;
   function newReqId() { return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12); }
 
-  // Sends one batch of scans. A failed batch is sent again with the SAME reqId: if Google had
+  function flush() {
+    if (sending || sendTimer || !session.token) return;
+    if (!inFlight.length) {
+      if (!pending.length) return;
+      inFlight = pending.splice(0, pending.length);
+      inFlightReqId = newReqId();
+      saveQueue();
+    }
+    sendBatch(0);
+  }
+
+  // Sends the batch in inFlight. A failed batch is sent again with the SAME request id: if Google had
   // already applied it and only the answer was lost, the server returns that answer and applies nothing twice.
-  function sendBatch(batch, reqId, attempt) {
+  function sendBatch(attempt) {
+    sending = true;
+    const batch = inFlight;
     google.script.run
       .withSuccessHandler(results => {
+        sending = false;
+        syncNote = '';
         inFlight = [];
+        inFlightReqId = null;
+        saveQueue();
         results.forEach((r, k) => handleResult(batch[k], r));
         setSync();
         flush();
       })
       .withFailureHandler(e => {
-        if (!e.auth && attempt < RETRY_DELAYS_MS.length) {
-          $('sync').className = 'saving';
-          $('sync').textContent = 'Google busy, retrying (' + (attempt + 1) + ')…';
-          setTimeout(() => sendBatch(batch, reqId, attempt + 1), RETRY_DELAYS_MS[attempt]);
+        sending = false;
+        if (e.auth) { syncNote = 'Log in again: ' + (pending.length + inFlight.length) + ' changes waiting'; setSync(); return; }
+        if (e.transport) {
+          const n = pending.length + inFlight.length;
+          syncNote = 'No connection: ' + n + ' change' + (n > 1 ? 's' : '') + ' kept on this phone, retrying…';
+          setSync();
+          sendTimer = setTimeout(() => { sendTimer = null; sendBatch(attempt + 1); }, RETRY_DELAYS_MS[attempt] || 15000);
           return;
         }
+        // The server refused the whole batch (should not happen): drop it so the queue does not get stuck.
+        syncNote = '';
         inFlight = [];
+        inFlightReqId = null;
+        saveQueue();
         batch.forEach(j => { setRecentState(j.id, false); dropUndo(j.id); });
-        show('err', 'NOT SAVED (' + batch.length + ' scans), please scan again. ' + e.message);
-        $('sync').className = 'err';
-        $('sync').textContent = 'Connection problem';
+        show('err', 'NOT SAVED (' + batch.length + ' changes): ' + e.message);
         loadStock(); // put the screen back in line with the sheet
+        flush();
       })
-      .applyChanges(batch.map(j => {
-        if (j.add) return { id: j.id, add: true, ean: j.ean, name: j.name, brand: j.brand, loc: j.loc, qty: j.qty };
-        const o = { id: j.id, ean: j.ean, d: j.d };
-        if (j.undo) { o.undo = true; if (j.restoreLoc != null) o.restoreLoc = j.restoreLoc; }
-        else o.loc = j.loc;
-        return o;
-      }), reqId);
+      .applyChanges(batch.map(serverJob), inFlightReqId);
   }
+
+  function serverJob(j) {
+    if (j.add) return { id: j.id, add: true, ean: j.ean, name: j.name, brand: j.brand, loc: j.loc, qty: j.qty };
+    if (j.move) return { id: j.id, move: true, ean: j.ean, loc: j.loc };
+    if (j.count) return { id: j.id, count: true, ean: j.ean, qty: j.qty, loc: j.loc };
+    const o = { id: j.id, ean: j.ean, d: j.d };
+    if (j.undo) { o.undo = true; if (j.restoreLoc != null) o.restoreLoc = j.restoreLoc; }
+    else if (j.pick) { o.pick = true; o.orderId = j.orderId; }
+    else o.loc = j.loc;
+    return o;
+  }
+
+  // Back online, or back on screen: send what is waiting right away.
+  function retryNow() {
+    if (sendTimer) { clearTimeout(sendTimer); sendTimer = null; sendBatch(0); }
+    else flush();
+  }
+  window.addEventListener('online', retryNow);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    audio();
+    if (pending.length || inFlight.length) retryNow();
+    if (session.token && Date.now() - lastLoad > REFRESH_MS) loadStock();
+  });
 
   function handleResult(job, r) {
     if (job.add) { handleAddResult(job, r); return; }
     if (r.product) {
       const key = norm(r.product.ean);
-      r.product.qty += unconfirmed(key); // keep later scans that are still on their way
+      r.product.qty += unconfirmed(key); // keep later changes that are still on their way
       const loc = unconfirmedLoc(key);
       if (loc !== null) r.product.location = loc;
       stock[key] = r.product;
       if (cardKey === key) showProduct(r.product);
+    }
+    if (job.move) {
+      if (r.ok) setRecentState(job.id, true);
+      else { setRecentState(job.id, false); show('err', 'Move NOT saved: ' + r.error); loadStock(); }
+      return;
     }
     if (r.ok) {
       if (job.applied) {
@@ -852,41 +1088,61 @@
         addRecent(recentEntry(job.id, r.product, job.undo ? 'UNDO' : (job.d > 0 ? 'IN' : 'OUT'), job.d, r.before, r.after, false));
       }
     } else if (job.applied) {
-      // Shown as done, but the sheet refused it (for example someone else took the last piece,
-      // or the product was removed from the list).
+      // Shown as done, but the sheet refused it (for example someone else took the last piece).
       setRecentState(job.id, false);
       dropUndo(job.id);
-      show('err', r.error);
+      const what = job.pick ? 'Picking NOT removed from stock: ' : job.count ? 'Inventory correction NOT saved: ' : '';
+      show('err', what + (r.product ? label(r.product) + ' – ' : '') + r.error);
       if (r.notFound) loadStock();
     }
   }
 
   function loadStock() {
+    lastLoad = Date.now();
     google.script.run
       .withSuccessHandler(res => {
         stock = res.stock;
-        // keep new products and scans made while loading
+        // keep new products and changes made while loading or kept from before
         pending.concat(inFlight).filter(j => j.add).forEach(j => {
           if (!stock[norm(j.ean)]) stock[norm(j.ean)] = newProduct(j);
         });
         pending.concat(inFlight).filter(j => j.applied && !j.add).forEach(j => {
           const p = stock[norm(j.ean)];
           if (!p) return;
-          p.qty += j.d;
+          if (typeof j.d === 'number') p.qty += j.d;
           if (j.locSet) p.location = j.undo ? (j.restoreLoc || '') : j.loc;
         });
         fillShelves(res.shelves || []);
+        checkVersion(res.version);
         if (!pending.length && !inFlight.length) recent = res.recent;
         renderRecent();
-        renderOrder();
+        renderPick();
+        renderInv();
         setSync();
       })
       .withFailureHandler(e => {
+        if (e.auth) return;
         $('sync').className = 'err';
         $('sync').textContent = 'Could not load stock';
         show('err', 'Could not load stock: ' + e.message);
       })
       .getInit();
+  }
+
+  function checkVersion(v) {
+    serverVersion = v == null ? null : Number(v);
+    const b = $('verBanner');
+    if (serverVersion == null || serverVersion < PAGE_VERSION) {
+      b.textContent = '⚠ The server is outdated (server v' + (serverVersion == null ? '?' : serverVersion) + ', page v' + PAGE_VERSION +
+                      '). In Apps Script paste the latest Code.gs and Api.gs, then Deploy → Manage deployments → ✏️ → New version.';
+      b.hidden = false;
+    } else if (serverVersion > PAGE_VERSION) {
+      b.textContent = '⚠ This page is older than the server (page v' + PAGE_VERSION + ', server v' + serverVersion +
+                      '). Reload the page; if this stays, upload the latest index.html to GitHub.';
+      b.hidden = false;
+    } else {
+      b.hidden = true;
+    }
   }
 
   // ---------- new product ----------
@@ -932,7 +1188,8 @@
     show('ok', 'Added at the bottom of the list: ' + label(p) + ' · qty ' + qty + ' · raft ' + p.location);
     if (mode === 'manual') $('manualQty').value = ''; // next product needs its own quantity
     closeNew();
-    renderOrder();
+    renderPick();
+    renderInv();
     send(job);
   }
 
@@ -964,125 +1221,439 @@
       show('err', 'New product NOT saved: ' + (r.error || 'unknown error') + '. Please add it again.');
       loadStock();
     }
-    renderOrder();
+    renderPick();
+    renderInv();
   }
 
-  // ---------- COMANDA NOUA ----------
+  // ---------- PICKING MODE ----------
+  // 1. Scan the packing list (each scan = one piece needed).
+  // 2. START PICKING: the app shows the next raft and product; scan each piece you take
+  //    (right product: ✓ green, wrong or too many: ✗ red alarm).
+  // 3. FINISH ORDER: the picked pieces are removed from stock (one PICK change per product) and
+  //    the order is saved in the Comenzi tab.
 
-  function storeOrder() {
-    try { localStorage.setItem('wmsOrder', JSON.stringify({ order: order, undo: orderUndo })); } catch (e) {}
-  }
+  function emptyPick() { return { phase: 'list', lines: {}, undo: [], orderId: '' }; }
+  let pick = emptyPick();
 
-  function restoreOrder() {
-    try {
-      const s = JSON.parse(localStorage.getItem('wmsOrder') || 'null');
-      if (s) { order = s.order || {}; orderUndo = s.undo || []; }
-    } catch (e) {}
-  }
-
-  function orderEntered() {
-    clearTimeout(autoTimer);
-    const ean = $('orderEan').value.trim();
-    $('orderEan').value = '';
-    if (!ean) return;
-    if (blocked()) return;
-    $('orderEan').focus();
-    orderScan(ean);
-  }
-
-  function orderScan(ean) {
-    const key = norm(ean);
-    const line = order[key] || { ean: ean, count: 0 };
-    line.count++;
-    order[key] = line;
-    orderUndo.push(key);
-    if (orderUndo.length > UNDO_MAX) orderUndo.shift();
-    storeOrder();
-    renderOrder();
-    updateUndoButtons();
-    const p = stock[key];
-    if (!p) {
-      show('err', 'EAN ' + ean + ' is not in the stock list (kept in the order).');
-      askAddProduct(ean, 0, '');
-    } else if (p.qty < line.count) {
-      show('err', 'Raft ' + (p.location || '-') + ' · ' + label(p) + ' · only ' + p.qty + ' in stock, order needs ' + line.count);
-    } else {
-      show('ok', 'Raft ' + (p.location || '-') + ' · ' + label(p) + ' · x' + line.count);
+  function storePick() { keep('wmsPick', pick); }
+  function restorePick() {
+    pick = load('wmsPick', null);
+    if (!pick) {
+      pick = emptyPick();
+      // the list of the previous version (COMANDA NOUA) is kept
+      const old = load('wmsOrder', null);
+      if (old && old.order) {
+        Object.keys(old.order).forEach(k => { pick.lines[k] = { ean: old.order[k].ean, need: old.order[k].count, picked: 0 }; });
+      }
     }
+    pick.undo = pick.undo || [];
   }
 
-  function undoOrder() {
-    if (blocked()) return;
-    const key = orderUndo.pop();
+  function pickEntered() {
+    clearTimeout(autoTimer);
+    const ean = $('pickEan').value.trim();
+    $('pickEan').value = '';
+    if (!ean || blocked()) return;
+    $('pickEan').focus();
+    pickScan(ean);
+  }
+
+  function pickScan(ean) {
+    const key = norm(ean);
+    const p = stock[key];
+    if (pick.phase === 'list') {
+      const line = pick.lines[key] || { ean: p ? p.ean : ean, need: 0, picked: 0 };
+      line.need++;
+      pick.lines[key] = line;
+      pushPickUndo({ key: key, kind: 'list' });
+      if (!p) {
+        show('err', 'EAN ' + ean + ' is not in the stock list (kept in the order).');
+        askAddProduct(ean, 0, '');
+      } else if (p.qty < line.need) {
+        show('err', 'Raft ' + (p.location || '-') + ' · ' + label(p) + ' · only ' + p.qty + ' in stock, order needs ' + line.need);
+      } else {
+        show('ok', 'Raft ' + (p.location || '-') + ' · ' + label(p) + ' · x' + line.need);
+      }
+    } else {
+      const line = pick.lines[key];
+      const name = p ? label(p) : 'EAN ' + ean;
+      if (!line) {
+        show('err', '✗ WRONG PRODUCT – not in this order: ' + name);
+        flashPick(false);
+      } else if (line.picked >= line.need) {
+        show('err', '✗ TOO MANY – you already took all ' + line.need + ' of ' + name);
+        flashPick(false);
+      } else {
+        line.picked++;
+        pushPickUndo({ key: key, kind: 'pick' });
+        const t = pickTotals();
+        show('ok', '✓ ' + name + ' · ' + line.picked + '/' + line.need +
+                   (t.picked === t.need ? ' · ORDER COMPLETE – press FINISH ORDER' : ''));
+        flashPick(true);
+      }
+    }
+    storePick();
+    renderPick();
+  }
+
+  function pushPickUndo(entry) {
+    pick.undo.push(entry);
+    if (pick.undo.length > UNDO_MAX) pick.undo.shift();
     updateUndoButtons();
-    if (!key || !order[key]) { show('info', 'Nothing to undo.'); return; }
-    order[key].count--;
-    const name = stock[key] ? label(stock[key]) : 'EAN ' + order[key].ean;
-    if (order[key].count <= 0) delete order[key];
-    storeOrder();
-    renderOrder();
-    show('ok', 'UNDO: removed one ' + name + ' from the order.');
-    $('orderEan').focus();
   }
 
-  function orderLines() {
-    return Object.keys(order).map(key => {
-      const p = stock[key];
-      return { key: key, ean: p ? p.ean : order[key].ean, count: order[key].count,
-               name: p ? p.name : '', brand: p ? p.brand : '',
-               location: p ? p.location : '', stock: p ? p.qty : null };
-    }).sort((a, b) => (a.location || '~').localeCompare(b.location || '~', undefined, { numeric: true }));
+  function undoPick() {
+    if (blocked()) return;
+    const u = pick.undo.pop();
+    if (!u || !pick.lines[u.key]) { updateUndoButtons(); show('info', 'Nothing to undo.'); return; }
+    const line = pick.lines[u.key];
+    const name = stock[u.key] ? label(stock[u.key]) : 'EAN ' + line.ean;
+    if (u.kind === 'pick') {
+      line.picked = Math.max(0, line.picked - 1);
+      show('ok', 'UNDO: one ' + name + ' put back (' + line.picked + '/' + line.need + ').');
+    } else {
+      line.need--;
+      if (line.need <= 0) delete pick.lines[u.key];
+      else line.picked = Math.min(line.picked, line.need);
+      show('ok', 'UNDO: one ' + name + ' removed from the order.');
+    }
+    storePick();
+    renderPick();
+    updateUndoButtons();
+    $('pickEan').focus();
   }
 
-  function renderOrder() {
-    const lines = orderLines();
-    const pcs = lines.reduce((s, l) => s + l.count, 0);
-    $('orderSum').textContent = lines.length
-      ? lines.length + ' products · ' + pcs + ' pieces · sorted by raft'
-      : 'No products scanned yet.';
-    $('orderRows').innerHTML = lines.map(l => {
-      const warn = l.stock === null || l.stock < l.count;
-      return '<tr class="' + (warn ? 'warn' : '') + '">' +
+  function flashPick(good) {
+    const t = $('pickTarget');
+    t.classList.remove('good', 'bad');
+    void t.offsetWidth; // restart the flash when scanning fast
+    t.classList.add(good ? 'good' : 'bad');
+    setTimeout(() => t.classList.remove('good', 'bad'), 700);
+  }
+
+  function pickLines() {
+    return Object.keys(pick.lines).map(key => {
+      const p = stock[key], l = pick.lines[key];
+      return { key: key, ean: p ? p.ean : l.ean, need: l.need, picked: l.picked,
+               name: p ? p.name : '', brand: p ? p.brand : '', location: p ? p.location : '', stock: p ? p.qty : null };
+    }).sort((a, b) => byShelf(a.location, b.location));
+  }
+
+  function pickTotals() {
+    return Object.values(pick.lines).reduce((t, l) => ({ need: t.need + l.need, picked: t.picked + l.picked }), { need: 0, picked: 0 });
+  }
+
+  function renderPick() {
+    const lines = pickLines();
+    const t = pickTotals();
+    const picking = pick.phase === 'pick';
+    $('pickListBtns').hidden = picking;
+    $('pickPickBtns').hidden = !picking;
+    $('pickLabel').textContent = picking ? 'Scan each product as you take it' : 'Scan the products from the packing list';
+    $('pickColQty').textContent = picking ? 'Luat' : 'Buc';
+    $('pickSum').textContent = !lines.length ? 'No products scanned yet.'
+      : picking ? 'Order ' + pick.orderId + ' · picked ' + t.picked + ' / ' + t.need + ' pieces · sorted by raft'
+                : lines.length + ' products · ' + t.need + ' pieces · sorted by raft';
+
+    const next = lines.find(l => l.picked < l.need);
+    $('pickTarget').hidden = !picking;
+    $('pickTarget').classList.toggle('complete', picking && !next);
+    if (picking) {
+      if (next) {
+        $('ptRaft').textContent = 'Raft ' + (next.location || '?');
+        $('ptWhat').textContent = (next.name || '(not in stock list)') + (next.brand ? ' · ' + next.brand : '') + ' · EAN ' + next.ean;
+        $('ptNeed').textContent = 'Take ' + (next.need - next.picked) + ' more  (' + next.picked + '/' + next.need + ')';
+      } else {
+        $('ptRaft').textContent = '✓ All picked';
+        $('ptWhat').textContent = t.picked + ' pieces';
+        $('ptNeed').textContent = 'Press FINISH ORDER to remove them from stock';
+      }
+    }
+
+    $('pickRows').innerHTML = lines.map(l => {
+      const short = l.stock === null || l.stock < l.need;
+      const cls = picking ? (l.picked >= l.need ? 'done' : l === next ? 'cur' : short ? 'warn' : '') : (short ? 'warn' : '');
+      return '<tr class="' + cls + '">' +
         '<td class="raft">' + esc(l.location || '?') + '</td>' +
         '<td>' + esc(l.name || '(not in stock list)') +
         (l.brand ? '<div class="br">' + esc(l.brand) + '</div>' : '') +
         '<div class="ean">EAN ' + esc(l.ean) + '</div></td>' +
-        '<td class="num">' + l.count + '</td>' +
+        '<td class="num">' + (picking ? l.picked + '/' + l.need : l.need) + '</td>' +
         '<td class="num">' + (l.stock === null ? '-' : l.stock) + '</td></tr>';
     }).join('');
+    updateUndoButtons();
   }
 
-  function saveOrder() {
-    const lines = orderLines();
-    if (!lines.length) { show('err', 'The order is empty.'); return; }
-    $('saveOrderBtn').disabled = true;
-    google.script.run
-      .withSuccessHandler(res => {
-        $('saveOrderBtn').disabled = false;
-        if (!res.ok) { show('err', res.error); return; }
-        show('ok', 'Order saved as ' + res.orderId + ' (' + res.lines + ' lines) in the Comenzi tab.');
-      })
-      .withFailureHandler(e => { $('saveOrderBtn').disabled = false; show('err', 'Order NOT saved: ' + e.message); })
-      .saveOrder(lines.map(l => ({ ean: l.ean, count: l.count })));
+  function startPicking() {
+    if (!Object.keys(pick.lines).length) { show('err', 'Scan the packing list first.'); return; }
+    pick.phase = 'pick';
+    if (!pick.orderId) {
+      const d = new Date(), two = n => String(n).padStart(2, '0'); // phone's local time
+      pick.orderId = 'CMD-' + d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate()) + '-' +
+                     two(d.getHours()) + two(d.getMinutes()) + two(d.getSeconds());
+    }
+    storePick();
+    renderPick();
+    const next = pickLines().find(l => l.picked < l.need);
+    show('info', 'Picking started. Go to raft ' + ((next && next.location) || '?') + ' and scan each piece you take.');
+    $('pickEan').focus();
   }
 
-  let clearArmed = null;
-  function clearOrder() {
-    if (!clearArmed) {
-      $('clearOrderBtn').textContent = 'Tap again to clear';
-      clearArmed = setTimeout(() => { clearArmed = null; $('clearOrderBtn').textContent = 'Clear order'; }, 3000);
+  function backToList() {
+    pick.phase = 'list';
+    storePick();
+    renderPick();
+    show('info', 'Back to the list: scan more products, or UNDO to remove one. Picked pieces are kept.');
+    $('pickEan').focus();
+  }
+
+  function clearPick() {
+    const btn = pick.phase === 'pick' ? 'cancelPickBtn' : 'clearPickBtn';
+    const text = pick.phase === 'pick' ? 'Cancel order' : 'Clear order';
+    twoTap(btn, text, () => {
+      pick = emptyPick();
+      storePick();
+      renderPick();
+      show('info', 'Order cleared. Scan the next packing list.');
+      $('pickEan').focus();
+    });
+  }
+
+  function finishPick() {
+    if (blocked() || !serverReady()) return;
+    const t = pickTotals();
+    if (!t.picked) { show('err', 'Nothing picked yet.'); return; }
+    if (t.picked < t.need) {
+      ask('warn', 'Not everything is picked: <b>' + t.picked + ' of ' + t.need + '</b> pieces.<br><br>' +
+                  'Remove only the picked pieces from stock and close the order?',
+        [{ label: 'YES, finish with what I picked', cls: 'yes', fn: doFinishPick },
+         { label: 'NO, continue picking', cls: 'sec', fn: () => $('pickEan').focus() }]);
       return;
     }
-    clearTimeout(clearArmed);
-    clearArmed = null;
-    $('clearOrderBtn').textContent = 'Clear order';
-    order = {};
-    orderUndo = [];
-    storeOrder();
-    renderOrder();
+    doFinishPick();
+  }
+
+  function doFinishPick() {
+    const lines = pickLines();
+    const orderId = pick.orderId;
+    let pieces = 0;
+    lines.forEach(l => {
+      const p = stock[l.key];
+      if (!l.picked || !p) return;
+      const job = { id: ++seq, pick: true, ean: p.ean, d: -l.picked, orderId: orderId, applied: true };
+      const before = p.qty;
+      p.qty = before - l.picked;
+      addRecent(recentEntry(job.id, p, 'PICK', -l.picked, before, p.qty, true));
+      send(job);
+      pieces += l.picked;
+    });
+    saveOrderRemote(lines.map(l => ({ ean: l.ean, count: l.picked,
+      note: l.picked >= l.need ? 'Picked, removed from stock' : 'Picked ' + l.picked + ' of ' + l.need })), orderId, 0);
+    pick = emptyPick();
+    storePick();
+    renderPick();
+    show('ok', 'Order ' + orderId + ' finished: ' + pieces + ' pieces removed from stock.');
+    $('pickEan').focus();
+  }
+
+  // The order is saved once (the server recognises the order id), so it is safe to try again.
+  function saveOrderRemote(lines, orderId, attempt) {
+    google.script.run
+      .withSuccessHandler(() => {})
+      .withFailureHandler(e => {
+        if (e.transport && attempt < 6) { setTimeout(() => saveOrderRemote(lines, orderId, attempt + 1), 5000 * (attempt + 1)); return; }
+        show('err', 'Stock was updated, but order ' + orderId + ' was NOT written to the Comenzi tab: ' + e.message);
+      })
+      .saveOrder(lines, orderId);
+  }
+
+  // ---------- MOD INVENTAR ----------
+  // Choose a raft, scan everything on it (or type a quantity before a scan), press FINISH COUNT,
+  // check the differences against the sheet, then APPLY CORRECTIONS sets the counted quantities.
+
+  function emptyInv(shelf) { return { shelf: shelf || '', phase: 'count', counted: {}, undo: [] }; }
+  let inv = emptyInv('');
+
+  function storeInv() { keep('wmsInv', inv); }
+  function restoreInv() {
+    inv = load('wmsInv', null) || emptyInv('');
+    inv.undo = inv.undo || [];
+    if (inv.shelf) setSelect($('invShelf'), inv.shelf);
+  }
+
+  function invShelfChanged() {
+    const shelf = $('invShelf').value;
+    markShelf();
+    if (shelf === inv.shelf) return;
+    const n = Object.keys(inv.counted).length;
+    const change = () => {
+      inv = emptyInv(shelf);
+      storeInv();
+      renderInv();
+      show('info', shelf ? 'Counting raft ' + shelf + '. Scan everything on it.' : 'Select the raft to count.');
+      focusScan();
+    };
+    if (!n) { change(); return; }
+    ask('warn', 'Start counting raft <b>' + esc(shelf || '-') + '</b>?<br><br>The current count of raft <b>' + esc(inv.shelf) +
+                '</b> (' + n + ' products) will be cleared.',
+      [{ label: 'YES, start a new count', cls: 'yes', fn: change },
+       { label: 'NO, keep the current count', cls: 'sec', fn: () => { setSelect($('invShelf'), inv.shelf); markShelf(); focusScan(); } }]);
+  }
+
+  function invEntered() {
+    clearTimeout(autoTimer);
+    const ean = $('invEan').value.trim();
+    $('invEan').value = '';
+    if (!ean || blocked()) return;
+    $('invEan').focus();
+    invScan(ean);
+  }
+
+  function invScan(ean) {
+    if (!inv.shelf) { show('err', 'Select the raft to count first.'); $('invShelf').focus(); return; }
+    if (inv.phase === 'review') { show('err', 'Press "Back to counting" to scan more.'); return; }
+    const raw = $('invQty').value.trim();
+    const n = raw === '' ? 1 : Number(raw);
+    if (!Number.isInteger(n) || n < 1 || raw.length >= MIN_EAN_LEN) {
+      $('invQty').value = '';
+      show('err', 'The quantity must be a whole number (1 or more). Type it again, then scan.');
+      $('invQty').focus();
+      return;
+    }
+    const key = norm(ean);
+    const p = stock[key];
+    const c = inv.counted[key] || { ean: p ? p.ean : ean, count: 0 };
+    c.count += n;
+    inv.counted[key] = c;
+    inv.undo.push({ key: key, n: n });
+    if (inv.undo.length > UNDO_MAX) inv.undo.shift();
+    $('invQty').value = '';
+    storeInv();
+    renderInv();
+    if (!p) {
+      show('err', 'EAN ' + ean + ' is not in the stock list (counted: ' + c.count + ').');
+      askAddProduct(ean, 0, inv.shelf);
+    } else if (p.location.trim() && !sameShelf(p.location, inv.shelf)) {
+      show('err', label(p) + ' is registered on raft ' + p.location + ', not ' + inv.shelf + ' (counted: ' + c.count + '). It will not be corrected here.');
+    } else {
+      show('ok', '✓ ' + label(p) + ' · counted ' + c.count + (n > 1 ? ' (+' + n + ')' : ''));
+    }
+  }
+
+  function undoInv() {
+    if (blocked()) return;
+    const u = inv.undo.pop();
+    if (!u || !inv.counted[u.key]) { updateUndoButtons(); show('info', 'Nothing to undo.'); return; }
+    const c = inv.counted[u.key];
+    c.count -= u.n;
+    const name = stock[u.key] ? label(stock[u.key]) : 'EAN ' + c.ean;
+    if (c.count <= 0) delete inv.counted[u.key];
+    storeInv();
+    renderInv();
+    show('ok', 'UNDO: −' + u.n + ' ' + name + ' (counted: ' + Math.max(0, c.count) + ').');
+    focusScan();
+  }
+
+  // Products registered on the raft plus everything scanned there.
+  function invLines() {
+    const keys = new Set(Object.keys(inv.counted));
+    if (inv.shelf) Object.keys(stock).forEach(k => { if (sameShelf(stock[k].location, inv.shelf)) keys.add(k); });
+    return [...keys].map(key => {
+      const p = stock[key], c = inv.counted[key];
+      const counted = c ? c.count : 0;
+      return { key: key, ean: p ? p.ean : c.ean, name: p ? p.name : '', brand: p ? p.brand : '',
+               location: p ? p.location : '', sheet: p ? p.qty : null, counted: counted,
+               unknown: !p, other: !!(p && p.location.trim() && !sameShelf(p.location, inv.shelf)),
+               diff: p ? counted - p.qty : 0 };
+    }).sort((a, b) => (a.name || a.ean).localeCompare(b.name || b.ean));
+  }
+
+  function renderInv() {
+    const lines = invLines();
+    const review = inv.phase === 'review';
+    $('invCountBtns').hidden = review;
+    $('invReviewBtns').hidden = !review;
+    if (!inv.shelf) {
+      $('invSum').textContent = 'Select the raft to count.';
+      $('invHead').innerHTML = '';
+      $('invRows').innerHTML = '';
+      updateUndoButtons();
+      return;
+    }
+    const pieces = Object.values(inv.counted).reduce((s, c) => s + c.count, 0);
+    const fix = lines.filter(l => !l.unknown && !l.other && l.diff !== 0);
+    const shown = review ? lines.filter(l => l.unknown || l.other || l.diff !== 0) : lines;
+    $('invSum').textContent = review
+      ? 'Raft ' + inv.shelf + ': ' + fix.length + ' difference' + (fix.length === 1 ? '' : 's') + ' to correct' +
+        (lines.length - fix.length ? ' · ' + (lines.length - fix.length) + ' products match or are not corrected' : '')
+      : 'Raft ' + inv.shelf + ': ' + lines.filter(l => !l.other).length + ' products · ' + pieces + ' pieces counted';
+    $('invHead').innerHTML = '<tr><th>Produs</th><th style="text-align:right">Foaie</th><th style="text-align:right">Numărat</th>' +
+                             (review ? '<th style="text-align:right">Dif.</th>' : '') + '</tr>';
+    $('invRows').innerHTML = shown.length ? shown.map(l => {
+      const cls = l.unknown || l.other ? 'other' : review ? 'warn' : (inv.counted[l.key] ? (l.diff === 0 ? 'done' : 'cur') : '');
+      const note = l.unknown ? 'not in stock list – not corrected'
+                 : l.other ? 'registered on raft ' + l.location + ' – not corrected' : '';
+      return '<tr class="' + cls + '">' +
+        '<td>' + esc(l.name || '(unknown)') + (l.brand ? '<div class="br">' + esc(l.brand) + '</div>' : '') +
+        '<div class="ean">EAN ' + esc(l.ean) + (note ? ' · ' + esc(note) : '') + '</div></td>' +
+        '<td class="num">' + (l.sheet === null ? '-' : l.sheet) + '</td>' +
+        '<td class="num">' + l.counted + '</td>' +
+        (review ? '<td class="num ' + (l.diff > 0 ? 'plus' : 'minus') + '">' + (l.unknown || l.other ? '' : (l.diff > 0 ? '+' : '') + l.diff) + '</td>' : '') +
+        '</tr>';
+    }).join('') : '<tr><td colspan="4" class="empty">' + (review ? 'No differences.' : 'Nothing counted yet.') + '</td></tr>';
+    $('applyInvBtn').textContent = 'APPLY CORRECTIONS (' + fix.length + ')';
     updateUndoButtons();
-    show('info', 'Order cleared. Scan the next order.');
-    $('orderEan').focus();
+  }
+
+  function finishInv() {
+    if (!inv.shelf) { show('err', 'Select the raft to count first.'); return; }
+    if (!Object.keys(inv.counted).length && !invLines().length) { show('err', 'Nothing counted yet.'); return; }
+    inv.phase = 'review';
+    storeInv();
+    renderInv();
+    const fix = invLines().filter(l => !l.unknown && !l.other && l.diff !== 0).length;
+    show('info', fix ? 'Check the differences. Products registered on this raft that you did not scan are counted as 0. ' +
+                       'Press APPLY CORRECTIONS to set the sheet to the counted quantities.'
+                     : 'No differences: raft ' + inv.shelf + ' matches the sheet.');
+  }
+
+  function backToCount() {
+    inv.phase = 'count';
+    storeInv();
+    renderInv();
+    show('info', 'Counting raft ' + inv.shelf + ' again: scan more products.');
+    focusScan();
+  }
+
+  function applyInv() {
+    if (blocked() || !serverReady()) return;
+    const fix = invLines().filter(l => !l.unknown && !l.other && l.diff !== 0);
+    fix.forEach(l => {
+      const p = stock[l.key];
+      const job = { id: ++seq, count: true, ean: p.ean, qty: l.counted, loc: inv.shelf, d: l.counted - p.qty, applied: true };
+      const before = p.qty;
+      if (!p.location.trim()) { p.location = inv.shelf; job.locSet = true; }
+      p.qty = l.counted;
+      addRecent(recentEntry(job.id, p, 'INVENTAR', l.counted - before, before, l.counted, true));
+      send(job);
+    });
+    const shelf = inv.shelf;
+    inv = emptyInv(shelf);
+    storeInv();
+    renderInv();
+    show('ok', fix.length ? 'Inventory raft ' + shelf + ': ' + fix.length + ' correction' + (fix.length === 1 ? '' : 's') + ' saved (type INVENTAR in the Log).'
+                          : 'Inventory raft ' + shelf + ': no differences, nothing to correct.');
+    focusScan();
+  }
+
+  function clearInv() {
+    twoTap('clearInvBtn', 'Clear count', () => {
+      inv = emptyInv(inv.shelf);
+      storeInv();
+      renderInv();
+      show('info', 'Count cleared. Scan raft ' + (inv.shelf || '-') + ' again.');
+      focusScan();
+    });
   }
 
   // ---------- inputs ----------
@@ -1098,34 +1669,38 @@
     });
   }
   autoApply($('ean'), eanEntered);
-  autoApply($('orderEan'), orderEntered);
+  autoApply($('pickEan'), pickEntered);
+  autoApply($('invEan'), invEntered);
   $('manualQty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); manualApply(); } });
+  $('invQty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('invEan').focus(); } });
   $('shelf').addEventListener('change', () => {
     markShelf();
-    if ($('shelf').value) { show('info', 'Raft ' + $('shelf').value + ' selected. Scan EAN.'); $('ean').focus(); }
+    if ($('shelf').value) { show('info', 'Raft ' + $('shelf').value + ' selected. Scan EAN.'); focusScan(); }
   });
+  $('invShelf').addEventListener('change', invShelfChanged);
   $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('newBrand').focus(); });
   $('newBrand').addEventListener('keydown', e => { if (e.key === 'Enter') $('newLoc').focus(); });
   $('newQty').addEventListener('keydown', e => { if (e.key === 'Enter') saveNew(); });
-
-  $('dlgYes').addEventListener('click', () => answer('yes'));
-  $('dlgNo').addEventListener('click', () => answer('no'));
   // While a question is open, keys from the scanner (including its Enter) must not answer it.
   $('dlgBox').addEventListener('keydown', e => e.preventDefault());
 
   // ---------- camera scanning (a USB/Bluetooth scanner works without this) ----------
-  // The camera runs at high resolution with continuous focus, and only the strip shown on
-  // screen (plus a margin above and below) is analysed: faster and more accurate than the whole picture.
+  // Battery: the camera only looks for a barcode while SCAN is pressed (up to 2.5 s), and switches
+  // itself off after 90 seconds without a SCAN. When it reads, it reads at high resolution with
+  // continuous focus, and only the strip shown on screen (plus a margin), for speed and accuracy.
   const CAM_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'];
   const ZOOM_STEPS = [1, 1.5, 2, 3];
-  const SAME_CODE_PAUSE_MS = 1500; // the same barcode must leave the camera this long before it counts again
-  let cam = null;                  // running camera: { stream, track, detector, raf, busy, caps, zoom, torch }
+  const SCAN_WINDOW_MS = 2500;
+  const CAM_IDLE_MS = 90000;
+  let cam = null;          // running camera: { stream, track, detector, raf, busy, scanning, deadline, caps, zoom, torch, idle }
+  let camStarting = false;
   let detectorPromise = null;
-  let lastCode = '', lastTime = 0;
   const camCanvas = document.createElement('canvas');
   const camCtx = camCanvas.getContext('2d', { willReadFrequently: true });
 
   // Android Chrome has a fast built-in barcode reader; other phones (iPhone) use the ZXing engine.
+  // Some phones announce a built-in reader that does not actually work (e.g. without Google Play
+  // services), so it is tried once on a small picture before it is trusted.
   function getDetector() {
     if (!detectorPromise) {
       detectorPromise = (async () => {
@@ -1133,7 +1708,13 @@
           try {
             const supported = await window.BarcodeDetector.getSupportedFormats();
             const formats = CAM_FORMATS.filter(f => supported.includes(f));
-            if (formats.includes('ean_13')) return new window.BarcodeDetector({ formats: formats });
+            if (formats.includes('ean_13')) {
+              const det = new window.BarcodeDetector({ formats: formats });
+              const probe = document.createElement('canvas');
+              probe.width = probe.height = 16;
+              await det.detect(probe);
+              return det;
+            }
           } catch (e) {}
         }
         if (window.BarcodeDetectionAPI) return new window.BarcodeDetectionAPI.BarcodeDetector({ formats: CAM_FORMATS });
@@ -1154,14 +1735,50 @@
   async function toggleCamera() {
     if (cam) { stopCamera(); return; }
     await startCamera(camPref('wmsCamera'));
+    if (cam) show('info', 'Camera on. Aim the red line at the barcode and press SCAN.');
+  }
+
+  // Green SCAN button: starts the camera if needed, then looks for a barcode for up to 2.5 seconds.
+  async function scanPress() {
+    audio();
+    if (blocked()) return;
+    if (!cam) {
+      if (camStarting) return;
+      await startCamera(camPref('wmsCamera'));
+      if (!cam) return;
+    }
+    armIdle();
+    if (cam.scanning) return;
+    cam.scanning = true;
+    cam.deadline = performance.now() + SCAN_WINDOW_MS;
+    $('scanBtn').classList.add('busy');
+    $('scanBtn').textContent = 'SCANNING…';
+    cam.raf = requestAnimationFrame(scanFrame);
+  }
+
+  function endScan() {
+    if (cam) { cam.scanning = false; cancelAnimationFrame(cam.raf); }
+    $('scanBtn').classList.remove('busy');
+    $('scanBtn').textContent = 'SCAN';
+  }
+
+  function armIdle() {
+    if (!cam) return;
+    clearTimeout(cam.idle);
+    cam.idle = setTimeout(() => {
+      stopCamera();
+      show('info', 'Camera switched off to save battery. Press SCAN to scan again.');
+    }, CAM_IDLE_MS);
   }
 
   async function startCamera(deviceId) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { show('err', 'Camera not available in this browser.'); return; }
+    camStarting = true;
     $('reader').hidden = false;
+    $('scanBtn').textContent = 'STARTING CAMERA…';
     try {
       const detector = await getDetector();
-      const video = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+      const video = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 24, max: 30 } };
       if (deviceId) video.deviceId = { exact: deviceId }; else video.facingMode = { ideal: 'environment' };
       let stream;
       try {
@@ -1169,25 +1786,30 @@
       } catch (e) {
         if (!deviceId) throw e;
         camPref('wmsCamera', ''); // the saved camera is not available any more: use the default back camera
+        camStarting = false;
         return startCamera('');
       }
       const v = $('camVideo');
       v.srcObject = stream;
       await v.play();
       cam = { stream: stream, track: stream.getVideoTracks()[0], detector: detector, raf: 0, busy: false,
-              caps: {}, zoom: 1, torch: false };
+              scanning: false, deadline: 0, caps: {}, zoom: 1, torch: false, idle: null };
       await tuneCamera();
       setupSwitch();
-      cam.raf = requestAnimationFrame(scanFrame);
+      armIdle();
     } catch (err) {
       stopCamera();
       show('err', 'Camera not available: ' + ((err && err.message) || err));
+    } finally {
+      camStarting = false;
+      if (!cam || !cam.scanning) $('scanBtn').textContent = 'SCAN';
     }
   }
 
   function stopCamera() {
+    endScan();
     if (cam) {
-      cancelAnimationFrame(cam.raf);
+      clearTimeout(cam.idle);
       cam.stream.getTracks().forEach(t => t.stop());
     }
     cam = null;
@@ -1216,6 +1838,7 @@
 
   async function nextZoom() {
     if (!cam || !cam.caps.zoom) return;
+    armIdle();
     const z = cam.caps.zoom;
     const steps = ZOOM_STEPS.filter(s => s >= z.min && s <= z.max);
     const next = steps[(steps.indexOf(cam.zoom) + 1) % steps.length] || z.min;
@@ -1229,6 +1852,7 @@
 
   async function toggleTorch() {
     if (!cam) return;
+    armIdle();
     try {
       await cam.track.applyConstraints({ advanced: [{ torch: !cam.torch }] });
       cam.torch = !cam.torch;
@@ -1263,7 +1887,8 @@
   // above or below the red line is still read.
   function stripRegion(v) {
     const vw = v.videoWidth, vh = v.videoHeight;
-    const ew = v.clientWidth || 1, eh = v.clientHeight || 1;
+    const ew = v.clientWidth, eh = v.clientHeight;
+    if (!ew || !eh) return { x: 0, y: 0, w: vw, h: vh }; // size on screen not known yet: read the whole picture
     const s = Math.max(ew / vw, eh / vh);   // same scaling as object-fit: cover
     const w = Math.min(vw, ew / s);
     const h = Math.min(vh, (eh / s) * 2);
@@ -1271,7 +1896,12 @@
   }
 
   async function scanFrame() {
-    if (!cam) return;
+    if (!cam || !cam.scanning) return;
+    if (performance.now() > cam.deadline) {
+      endScan();
+      show('info', 'No barcode found. Hold the phone 15–25 cm away with the red line across the barcode, then press SCAN again.');
+      return;
+    }
     const v = $('camVideo');
     if (!cam.busy && v.readyState >= 2 && v.videoWidth) {
       cam.busy = true;
@@ -1281,35 +1911,41 @@
         camCanvas.height = r.h;
         camCtx.drawImage(v, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
         const found = await cam.detector.detect(camCanvas);
-        if (found.length && cam) cameraCode(found[0].rawValue);
+        if (found.length && cam && cam.scanning) {
+          cam.busy = false;
+          endScan();
+          cameraCode(found[0].rawValue);
+          return;
+        }
       } catch (e) {}
       if (cam) cam.busy = false;
     }
-    if (cam) cam.raf = requestAnimationFrame(scanFrame);
+    if (cam && cam.scanning) cam.raf = requestAnimationFrame(scanFrame);
   }
 
   function cameraCode(code) {
-    const now = Date.now();
-    if (code === lastCode && now - lastTime < SAME_CODE_PAUSE_MS) { lastTime = now; return; } // still in front of the camera
-    lastCode = code;
-    lastTime = now;
     $('reader').classList.add('hit');
     setTimeout(() => $('reader').classList.remove('hit'), 300);
     if (blocked()) return;
-    if (mode === 'order') { orderScan(code); return; }
+    if (mode === 'pick') { pickScan(code); return; }
+    if (mode === 'inv') { invScan(code); return; }
     $('ean').value = code;
     eanEntered();
   }
 
-  // The phone stops the camera when the page goes to the background; tidy up so 📷 starts it again cleanly.
+  // The phone stops the camera when the page goes to the background; tidy up so SCAN starts it again cleanly.
   document.addEventListener('visibilitychange', () => { if (document.hidden && cam) stopCamera(); });
 
-  $('loginCode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doLogin(); } });
-
-  restoreOrder();
-  renderOrder();
+  // ---------- start ----------
+  restoreQueue();
+  restorePick();
+  restoreInv();
+  placeCamera();
+  renderPick();
+  renderInv();
   updateUndoButtons();
   markShelf();
+  setSync();
   if (session.token) startApp(); else showLogin('');
 </script>
 </body>
