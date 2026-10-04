@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mini WMS</title>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<!-- Barcode engine (ZXing) for phones without a built-in reader, e.g. iPhone. Android Chrome uses its own. -->
+<script src="https://cdn.jsdelivr.net/npm/barcode-detector@3.2.2/dist/iife/ponyfill.js"></script>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; padding: 16px; font-family: system-ui, Arial, sans-serif; background: #f4f5f7; color: #222; }
@@ -57,11 +58,16 @@
   .card .meta { color: #555; margin-top: 4px; }
   .card .qty { font-size: 40px; font-weight: 800; margin-top: 6px; }
   /* Camera: a narrow strip, about as tall as a barcode, with a red aiming line */
-  #reader { position: relative; height: 110px; margin-top: 10px; overflow: hidden; border-radius: 8px; background: #000; }
-  #reader video { width: 100% !important; height: 100% !important; object-fit: cover; display: block; }
-  #reader canvas, #reader #qr-shaded-region, #reader img { display: none !important; }
+  #reader { position: relative; height: 130px; margin-top: 10px; overflow: hidden; border-radius: 8px; background: #000;
+            border: 3px solid #000; transition: border-color .15s; }
+  #reader.hit { border-color: #1e9e48; }
+  #reader video { width: 100%; height: 100%; object-fit: cover; display: block; }
   #reader::after { content: ''; position: absolute; left: 6%; right: 6%; top: 50%; border-top: 2px solid #ff1a1a;
                    box-shadow: 0 0 6px #ff1a1a; pointer-events: none; }
+  .camtools { position: absolute; right: 6px; top: 6px; display: flex; gap: 6px; z-index: 2; }
+  .camtools button { background: rgba(0,0,0,.55); color: #fff; border: 1px solid rgba(255,255,255,.4); border-radius: 6px;
+                     font-size: 14px; font-weight: 700; padding: 6px 9px; cursor: pointer; }
+  .camtools button.on { background: #f5c400; color: #000; }
 
   /* YES / NO questions */
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
@@ -143,7 +149,14 @@
     <button class="undo" id="undoOrder" onclick="undoOrder()">UNDO</button>
   </div>
 
-  <div id="reader" hidden></div>
+  <div id="reader" hidden>
+    <video id="camVideo" playsinline muted autoplay></video>
+    <div class="camtools">
+      <button id="zoomBtn" type="button" hidden onclick="nextZoom()">1×</button>
+      <button id="torchBtn" type="button" hidden onclick="toggleTorch()">🔦</button>
+      <button id="switchBtn" type="button" hidden onclick="switchCamera()">🔄</button>
+    </div>
+  </div>
   <div id="msg" class="info">Select a raft, then scan.</div>
 
   <div id="newBox" class="card" hidden>
@@ -361,7 +374,6 @@
   }
 
   let mode = 'add';
-  let scanner = null;
   const $ = id => document.getElementById(id);
 
   // The whole stock list is kept in the page, so a scan shows its result instantly.
@@ -455,17 +467,21 @@
       const o = ctx.createOscillator(), g = ctx.createGain();
       o.type = type;
       o.frequency.value = freq;
-      g.gain.setValueAtTime(volume, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + ms / 1000);
+      // Full volume for most of the tone, then a short fade (avoids a click at the end).
+      const t = ctx.currentTime, end = t + ms / 1000;
+      g.gain.setValueAtTime(volume, t);
+      g.gain.setValueAtTime(volume, end - 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, end);
       o.connect(g); g.connect(ctx.destination);
-      o.start();
-      o.stop(ctx.currentTime + ms / 1000);
+      o.start(t);
+      o.stop(end);
     } catch (e) {}
   }
 
-  // Error: low buzz. Success: short high "scanner" beep.
+  // Error: low buzz. Success: loud high "scanner" beep (around 2.7 kHz, where the ear and
+  // phone speakers are most sensitive; a square wave sounds much louder than a soft sine).
   function beep() { tone(220, 350, 'square', 0.25); }
-  function okSound() { tone(1800, 120, 'sine', 0.4); }
+  function okSound() { tone(2700, 150, 'square', 0.6); }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -640,7 +656,11 @@
       }
     }
     $('ean').focus();
-    stockScan(ean, d);
+    if (stockScan(ean, d) && mode === 'manual') {
+      // Done: empty the quantity so the next product needs its own quantity.
+      $('manualQty').value = '';
+      $('manualQty').focus();
+    }
   }
 
   // MANUAL quantity: a non-zero whole number, or null when empty or not valid.
@@ -701,6 +721,7 @@
     }
     // Every scan of a known product goes to the server, so refused scans are logged too.
     send(job);
+    return job.applied; // true when the scan was accepted
   }
 
   function undoStock() {
@@ -879,6 +900,7 @@
     addRecent(recentEntry(job.id, p, 'NEW', qty, 0, qty, true));
     showProduct(p);
     show('ok', 'Added at the bottom of the list: ' + label(p) + ' · qty ' + qty + ' · raft ' + p.location);
+    if (mode === 'manual') $('manualQty').value = ''; // next product needs its own quantity
     closeNew();
     renderOrder();
     send(job);
@@ -1061,33 +1083,196 @@
   // While a question is open, keys from the scanner (including its Enter) must not answer it.
   $('dlgBox').addEventListener('keydown', e => e.preventDefault());
 
-  // Optional phone camera scanning (a USB/Bluetooth scanner works without this).
+  // ---------- camera scanning (a USB/Bluetooth scanner works without this) ----------
+  // The camera runs at high resolution with continuous focus, and only the strip shown on
+  // screen (plus a margin above and below) is analysed: faster and more accurate than the whole picture.
+  const CAM_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'];
+  const ZOOM_STEPS = [1, 1.5, 2, 3];
+  const SAME_CODE_PAUSE_MS = 1500; // the same barcode must leave the camera this long before it counts again
+  let cam = null;                  // running camera: { stream, track, detector, raf, busy, caps, zoom, torch }
+  let detectorPromise = null;
   let lastCode = '', lastTime = 0;
-  function toggleCamera() {
-    if (scanner) {
-      scanner.stop().then(() => { scanner.clear(); scanner = null; $('reader').hidden = true; });
-      return;
+  const camCanvas = document.createElement('canvas');
+  const camCtx = camCanvas.getContext('2d', { willReadFrequently: true });
+
+  // Android Chrome has a fast built-in barcode reader; other phones (iPhone) use the ZXing engine.
+  function getDetector() {
+    if (!detectorPromise) {
+      detectorPromise = (async () => {
+        if ('BarcodeDetector' in window) {
+          try {
+            const supported = await window.BarcodeDetector.getSupportedFormats();
+            const formats = CAM_FORMATS.filter(f => supported.includes(f));
+            if (formats.includes('ean_13')) return new window.BarcodeDetector({ formats: formats });
+          } catch (e) {}
+        }
+        if (window.BarcodeDetectionAPI) return new window.BarcodeDetectionAPI.BarcodeDetector({ formats: CAM_FORMATS });
+        throw new Error('the barcode reader did not load (check the internet connection)');
+      })();
+      detectorPromise.catch(() => { detectorPromise = null; });
     }
-    if (typeof Html5Qrcode === 'undefined') { show('err', 'Camera library did not load.'); return; }
-    $('reader').hidden = false;
-    scanner = new Html5Qrcode('reader', {
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.CODE_128
-      ],
-      experimentalFeatures: { useBarCodeDetectorIfSupported: true } // phone's own reader: faster
-    });
-    // No scan box: the whole camera picture is read; the screen only shows its middle strip.
-    scanner.start({ facingMode: 'environment' }, { fps: 15 }, code => {
-      const now = Date.now();
-      if (code === lastCode && now - lastTime < 2000) return; // ignore the same code read twice in a row
-      lastCode = code; lastTime = now;
-      if (blocked()) return;
-      if (mode === 'order') { orderScan(code); return; }
-      $('ean').value = code;
-      eanEntered();
-    }).catch(err => { scanner = null; $('reader').hidden = true; show('err', 'Camera not available: ' + err); });
+    return detectorPromise;
   }
+
+  function camPref(key, value) {
+    try {
+      if (value === undefined) return localStorage.getItem(key) || '';
+      localStorage.setItem(key, value);
+    } catch (e) { return ''; }
+  }
+
+  async function toggleCamera() {
+    if (cam) { stopCamera(); return; }
+    await startCamera(camPref('wmsCamera'));
+  }
+
+  async function startCamera(deviceId) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { show('err', 'Camera not available in this browser.'); return; }
+    $('reader').hidden = false;
+    try {
+      const detector = await getDetector();
+      const video = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+      if (deviceId) video.deviceId = { exact: deviceId }; else video.facingMode = { ideal: 'environment' };
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: video });
+      } catch (e) {
+        if (!deviceId) throw e;
+        camPref('wmsCamera', ''); // the saved camera is not available any more: use the default back camera
+        return startCamera('');
+      }
+      const v = $('camVideo');
+      v.srcObject = stream;
+      await v.play();
+      cam = { stream: stream, track: stream.getVideoTracks()[0], detector: detector, raf: 0, busy: false,
+              caps: {}, zoom: 1, torch: false };
+      await tuneCamera();
+      setupSwitch();
+      cam.raf = requestAnimationFrame(scanFrame);
+    } catch (err) {
+      stopCamera();
+      show('err', 'Camera not available: ' + ((err && err.message) || err));
+    }
+  }
+
+  function stopCamera() {
+    if (cam) {
+      cancelAnimationFrame(cam.raf);
+      cam.stream.getTracks().forEach(t => t.stop());
+    }
+    cam = null;
+    $('camVideo').srcObject = null;
+    $('reader').hidden = true;
+    $('reader').classList.remove('hit');
+  }
+
+  // Continuous focus and a little zoom (lets the phone stay far enough away to focus),
+  // where the phone allows it. iPhones mostly ignore these settings.
+  async function tuneCamera() {
+    const t = cam.track;
+    const caps = cam.caps = (t.getCapabilities ? t.getCapabilities() : {}) || {};
+    const adv = {};
+    if (caps.focusMode && caps.focusMode.includes('continuous')) adv.focusMode = 'continuous';
+    if (caps.zoom) {
+      const wanted = Number(camPref('wmsZoom')) || 1.5;
+      cam.zoom = adv.zoom = Math.min(caps.zoom.max, Math.max(caps.zoom.min, wanted));
+    }
+    try { if (Object.keys(adv).length) await t.applyConstraints({ advanced: [adv] }); } catch (e) {}
+    $('zoomBtn').hidden = !caps.zoom;
+    $('zoomBtn').textContent = cam.zoom + '×';
+    $('torchBtn').hidden = !caps.torch;
+    $('torchBtn').classList.remove('on');
+  }
+
+  async function nextZoom() {
+    if (!cam || !cam.caps.zoom) return;
+    const z = cam.caps.zoom;
+    const steps = ZOOM_STEPS.filter(s => s >= z.min && s <= z.max);
+    const next = steps[(steps.indexOf(cam.zoom) + 1) % steps.length] || z.min;
+    try {
+      await cam.track.applyConstraints({ advanced: [{ zoom: next }] });
+      cam.zoom = next;
+      camPref('wmsZoom', String(next));
+      $('zoomBtn').textContent = next + '×';
+    } catch (e) {}
+  }
+
+  async function toggleTorch() {
+    if (!cam) return;
+    try {
+      await cam.track.applyConstraints({ advanced: [{ torch: !cam.torch }] });
+      cam.torch = !cam.torch;
+      $('torchBtn').classList.toggle('on', cam.torch);
+    } catch (e) {}
+  }
+
+  // Phones with several back cameras (wide, ultra-wide, tele): 🔄 goes to the next one and remembers it.
+  let backCameras = [];
+  async function setupSwitch() {
+    try {
+      const all = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+      const back = all.filter(d => /back|rear|environment|spate|arri/i.test(d.label));
+      backCameras = back.length ? back : all;
+    } catch (e) { backCameras = []; }
+    $('switchBtn').hidden = backCameras.length < 2;
+  }
+
+  async function switchCamera() {
+    if (!cam || backCameras.length < 2) return;
+    const current = cam.track.getSettings ? cam.track.getSettings().deviceId : '';
+    const i = backCameras.findIndex(d => d.deviceId === current);
+    const next = backCameras[(i + 1) % backCameras.length];
+    camPref('wmsCamera', next.deviceId);
+    stopCamera();
+    await startCamera(next.deviceId);
+    show('info', 'Camera ' + (backCameras.indexOf(next) + 1) + ' of ' + backCameras.length +
+                 (next.label ? ' (' + next.label + ')' : '') + '. Keep the one that focuses best.');
+  }
+
+  // Part of the camera picture visible in the strip, made twice as tall so a barcode a bit
+  // above or below the red line is still read.
+  function stripRegion(v) {
+    const vw = v.videoWidth, vh = v.videoHeight;
+    const ew = v.clientWidth || 1, eh = v.clientHeight || 1;
+    const s = Math.max(ew / vw, eh / vh);   // same scaling as object-fit: cover
+    const w = Math.min(vw, ew / s);
+    const h = Math.min(vh, (eh / s) * 2);
+    return { x: Math.round((vw - w) / 2), y: Math.round((vh - h) / 2), w: Math.round(w), h: Math.round(h) };
+  }
+
+  async function scanFrame() {
+    if (!cam) return;
+    const v = $('camVideo');
+    if (!cam.busy && v.readyState >= 2 && v.videoWidth) {
+      cam.busy = true;
+      try {
+        const r = stripRegion(v);
+        camCanvas.width = r.w;
+        camCanvas.height = r.h;
+        camCtx.drawImage(v, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+        const found = await cam.detector.detect(camCanvas);
+        if (found.length && cam) cameraCode(found[0].rawValue);
+      } catch (e) {}
+      if (cam) cam.busy = false;
+    }
+    if (cam) cam.raf = requestAnimationFrame(scanFrame);
+  }
+
+  function cameraCode(code) {
+    const now = Date.now();
+    if (code === lastCode && now - lastTime < SAME_CODE_PAUSE_MS) { lastTime = now; return; } // still in front of the camera
+    lastCode = code;
+    lastTime = now;
+    $('reader').classList.add('hit');
+    setTimeout(() => $('reader').classList.remove('hit'), 300);
+    if (blocked()) return;
+    if (mode === 'order') { orderScan(code); return; }
+    $('ean').value = code;
+    eanEntered();
+  }
+
+  // The phone stops the camera when the page goes to the background; tidy up so 📷 starts it again cleanly.
+  document.addEventListener('visibilitychange', () => { if (document.hidden && cam) stopCamera(); });
 
   $('loginCode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doLogin(); } });
 
