@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini WMS</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; font-family: system-ui, Arial, sans-serif; background: #f4f5f7; color: #222; }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  h2 { font-size: 15px; margin: 20px 0 8px; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+  .top { display: flex; justify-content: space-between; align-items: baseline; }
+  #sync { font-size: 13px; font-weight: 600; color: #137333; }
+  #sync.saving { color: #b06000; }
+  #sync.err { color: #c5221f; }
+  .who { font-size: 13px; color: #444; margin: -6px 0 10px; display: flex; justify-content: space-between; align-items: center; }
+  .who b { color: #1a56c4; }
+  .linkbtn { background: none; border: 0; color: #c5221f; font-weight: 700; font-size: 13px; cursor: pointer; padding: 4px 0; }
+  #login .dlgbox { border-top: 8px solid #1a56c4; }
+  #login h3 { margin: 0 0 6px; font-size: 20px; }
+  #loginMsg { min-height: 22px; color: #c5221f; font-weight: 600; margin: 8px 0; }
+
+  .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  .modes button { border: 3px solid transparent; border-radius: 10px; padding: 14px 4px; font-size: 17px; font-weight: 700; color: #fff; cursor: pointer; opacity: .55; line-height: 1.15; }
+  .modes button.active { opacity: 1; border-color: #222; }
+  .modes button[data-mode="add"] { background: #1e9e48; }
+  .modes button[data-mode="remove"] { background: #d93025; }
+  .modes button[data-mode="manual"] { background: #6b7280; }
+  .modes button[data-mode="order"] { background: #1a56c4; font-size: 14px; }
+
+  label { display: block; font-size: 13px; color: #555; margin: 10px 0 4px; }
+  input, select { width: 100%; font-size: 20px; padding: 12px; border: 2px solid #ccc; border-radius: 8px; background: #fff; }
+  select { font-weight: 700; }
+  input:focus, select:focus { border-color: #1a73e8; outline: none; }
+  select.missing { border-color: #d93025; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .btn { padding: 12px; font-size: 16px; border: 0; border-radius: 8px; background: #1a73e8; color: #fff; cursor: pointer; font-weight: 600; }
+  .btn.sec { background: #e0e0e0; color: #222; }
+  .btn.yes { background: #1e9e48; }
+  .cam { flex: 0 0 auto; }
+  .undo { display: block; width: 100%; margin-top: 8px; padding: 14px; font-size: 18px; font-weight: 800; letter-spacing: .06em;
+          color: #fff; background: #ff1a1a; border: 0; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 0 #b80000; }
+  .undo:active { transform: translateY(2px); box-shadow: none; }
+  .undo:disabled { background: #f3a5a5; box-shadow: none; cursor: default; }
+  .hint { font-size: 12px; color: #777; margin-top: 4px; }
+
+  #msg { margin: 12px 0; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: 600; min-height: 46px; }
+  #msg.ok { background: #e6f4ea; color: #137333; }
+  #msg.err { background: #fce8e6; color: #c5221f; }
+  #msg.info { background: #e8f0fe; color: #1a56c4; }
+  .card { background: #fff; border-radius: 10px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.12); margin-bottom: 10px; }
+  .card .name { font-size: 18px; font-weight: 700; }
+  .card .brand { font-size: 15px; font-weight: 600; color: #1a56c4; margin-top: 2px; }
+  .card .meta { color: #555; margin-top: 4px; }
+  .card .qty { font-size: 40px; font-weight: 800; margin-top: 6px; }
+  #reader { margin-top: 10px; }
+
+  /* YES / NO questions */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  .dlgbox { background: #fff; border-radius: 12px; padding: 18px; width: 100%; max-width: 440px; box-shadow: 0 8px 30px rgba(0,0,0,.3); outline: none; }
+  .dlgbox.warn { border-top: 8px solid #d93025; }
+  .dlgbox.ask { border-top: 8px solid #1a56c4; }
+  #dlgText { font-size: 17px; line-height: 1.4; margin-bottom: 16px; }
+  #dlgText .big { font-size: 30px; font-weight: 800; color: #d93025; }
+  #dlgText .prod { font-weight: 700; }
+  #dlgText .sub { color: #555; font-size: 14px; }
+  .dlgbox .btn { padding: 16px; font-size: 18px; font-weight: 800; }
+
+  #recent { list-style: none; margin: 0; padding: 0; }
+  #recent li { display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.08); border-left: 6px solid #6b7280; }
+  #recent li.in { border-left-color: #1e9e48; }
+  #recent li.out { border-left-color: #d93025; }
+  #recent li.pending { opacity: .6; }
+  #recent .chg { font-size: 20px; font-weight: 800; min-width: 52px; text-align: center; }
+  #recent li.in .chg { color: #1e9e48; } #recent li.out .chg { color: #d93025; }
+  #recent .info { flex: 1; min-width: 0; }
+  #recent .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #recent .sub { font-size: 12px; color: #666; }
+  #recent .qa { text-align: right; font-size: 13px; color: #444; white-space: nowrap; }
+  #recent .qa b { font-size: 18px; color: #222; }
+  .empty { color: #888; font-size: 14px; }
+
+  .otable-wrap { overflow-x: auto; }
+  .otable { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .otable th { background: #1a56c4; color: #fff; font-size: 13px; text-align: left; padding: 8px; }
+  .otable td { padding: 8px; border-top: 1px solid #eee; font-size: 14px; vertical-align: top; }
+  .otable td.raft { font-size: 20px; font-weight: 800; white-space: nowrap; }
+  .otable td.num { text-align: right; font-weight: 700; white-space: nowrap; }
+  .otable tr.warn td { background: #fce8e6; }
+  .otable .ean { font-size: 12px; color: #666; }
+  .otable .br { font-size: 12px; color: #1a56c4; font-weight: 600; }
+  .osum { margin: 8px 0; font-weight: 600; color: #444; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1>Mini WMS</h1><span id="sync" class="saving">Loading stock…</span></div>
+  <div class="who"><span>Logged in as <b id="whoName">-</b></span><button class="linkbtn" onclick="logout()">Logout</button></div>
+
+  <div class="modes">
+    <button data-mode="add" class="active" onclick="setMode('add')">+1</button>
+    <button data-mode="remove" onclick="setMode('remove')">−1</button>
+    <button data-mode="manual" onclick="setMode('manual')">MANUAL</button>
+    <button data-mode="order" onclick="setMode('order')">COMANDA NOUA</button>
+  </div>
+
+  <!-- +1 / -1 / MANUAL -->
+  <div id="stockPanel">
+    <label for="shelf">Raft (shelf)</label>
+    <select id="shelf"><option value="">— select raft —</option></select>
+
+    <label for="ean">Scan EAN</label>
+    <div class="row">
+      <input id="ean" inputmode="numeric" autocomplete="off" autofocus>
+      <button class="btn sec cam" onclick="toggleCamera()">📷</button>
+    </div>
+
+    <div id="manualBox" hidden>
+      <label for="manualQty">Quantity to apply per scan (use a minus sign to remove, e.g. -5)</label>
+      <input id="manualQty" type="number" step="1" inputmode="numeric">
+      <div class="hint">Scan the EAN, type the quantity, press Enter.</div>
+    </div>
+
+    <button class="undo" id="undoStock" onclick="undoStock()">UNDO</button>
+  </div>
+
+  <!-- COMANDA NOUA -->
+  <div id="orderPanel" hidden>
+    <label for="orderEan">Scan EAN from the packing list</label>
+    <div class="row">
+      <input id="orderEan" inputmode="numeric" autocomplete="off">
+      <button class="btn sec cam" onclick="toggleCamera()">📷</button>
+    </div>
+    <button class="undo" id="undoOrder" onclick="undoOrder()">UNDO</button>
+  </div>
+
+  <div id="reader"></div>
+  <div id="msg" class="info">Select a raft, then scan.</div>
+
+  <div id="newBox" class="card" hidden>
+    <div class="name">New product · EAN <span id="newEan"></span></div>
+    <label for="newName">Nume produs</label>
+    <input id="newName">
+    <label for="newBrand">Brand</label>
+    <input id="newBrand">
+    <label for="newLoc">Raft depozitare</label>
+    <select id="newLoc"><option value="">— select raft —</option></select>
+    <label for="newQty">Starting quantity</label>
+    <input id="newQty" type="number" min="0" step="1" inputmode="numeric">
+    <div class="row" style="margin-top:10px">
+      <button class="btn" onclick="saveNew()">Save product</button>
+      <button class="btn sec" onclick="cancelNew()">Cancel</button>
+    </div>
+  </div>
+
+  <div id="stockArea">
+    <div id="card" class="card" hidden>
+      <div class="name" id="pName"></div>
+      <div class="brand" id="pBrand"></div>
+      <div class="meta">EAN <span id="pEan"></span> · Raft <b id="pLoc"></b></div>
+      <div class="qty" id="pQty"></div>
+    </div>
+  </div>
+
+  <div id="orderArea" hidden>
+    <div class="osum" id="orderSum"></div>
+    <div class="otable-wrap"><table class="otable">
+      <thead><tr><th>Raft</th><th>Produs</th><th style="text-align:right">Buc</th><th style="text-align:right">Stoc</th></tr></thead>
+      <tbody id="orderRows"></tbody>
+    </table></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="saveOrderBtn" onclick="saveOrder()">Save order</button>
+      <button class="btn sec" id="clearOrderBtn" onclick="clearOrder()">Clear order</button>
+    </div>
+  </div>
+
+  <h2>Last 5 stock changes</h2>
+  <ul id="recent"><li class="empty">Loading…</li></ul>
+</div>
+
+<!-- employee login -->
+<div id="login" class="overlay" hidden>
+  <div class="dlgbox">
+    <h3>Mini WMS</h3>
+    <label for="loginCode">Your personal code</label>
+    <input id="loginCode" type="password" inputmode="numeric" autocomplete="off">
+    <div id="loginMsg"></div>
+    <button class="btn yes" id="loginBtn" style="width:100%" onclick="doLogin()">LOG IN</button>
+  </div>
+</div>
+
+<!-- question with YES / NO -->
+<div id="dlg" class="overlay" hidden>
+  <div id="dlgBox" class="dlgbox" tabindex="-1">
+    <div id="dlgText"></div>
+    <div class="row">
+      <button class="btn yes" id="dlgYes">YES</button>
+      <button class="btn sec" id="dlgNo">NO</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---------- connection to the Google Apps Script API ----------
+  // Paste the Web app URL of the API project (ends with /exec) between the quotes.
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxPKIbG2i6kMiKKyesQB9onB0_GBSy6O8pM9bRBgm94qbJs-gVWw9xgoP0vECSStmc/exec';
+
+  let session = {};
+  try { session = JSON.parse(localStorage.getItem('wmsSession') || '{}'); } catch (e) {}
+
+  async function apiCall(action, args, extra) {
+    if (API_URL.indexOf('https://') !== 0) throw new Error('API_URL is not set in index.html.');
+    // text/plain keeps this a "simple" request, which Google accepts from another website.
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ action: action, args: args, token: session.token }, extra || {}))
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      if (data.auth) showLogin(data.error);
+      throw new Error(data.error || 'Unknown error');
+    }
+    if (data.user && data.user !== session.user) { // name corrected in the employee list
+      session.user = data.user;
+      $('whoName').textContent = data.user;
+    }
+    return data;
+  }
+
+  // Same calling style as google.script.run inside Apps Script, so the rest of the page is unchanged.
+  function runner(onOk, onFail) {
+    return new Proxy({}, {
+      get(_, name) {
+        if (name === 'withSuccessHandler') return h => runner(h, onFail);
+        if (name === 'withFailureHandler') return h => runner(onOk, h);
+        return (...args) => {
+          apiCall(name, args)
+            .then(data => { if (onOk) onOk(data.result); })
+            .catch(err => { if (onFail) onFail(err); });
+        };
+      }
+    });
+  }
+  window.google = { script: { get run() { return runner(null, null); } } };
+
+  function showLogin(text) {
+    session = {};
+    try { localStorage.removeItem('wmsSession'); } catch (e) {}
+    $('login').hidden = false;
+    $('loginMsg').textContent = text || '';
+    $('loginCode').value = '';
+    $('loginCode').focus();
+  }
+
+  async function doLogin() {
+    const code = $('loginCode').value.trim();
+    if (!code) { $('loginMsg').textContent = 'Type your code.'; return; }
+    $('loginBtn').disabled = true;
+    $('loginMsg').textContent = 'Checking…';
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'login', code: code })
+      }).then(r => r.json());
+      if (!res.ok) { $('loginMsg').textContent = res.error; return; }
+      session = { token: res.token, user: res.user };
+      try { localStorage.setItem('wmsSession', JSON.stringify(session)); } catch (e) {}
+      $('login').hidden = true;
+      startApp();
+    } catch (e) {
+      $('loginMsg').textContent = 'Connection problem: ' + e.message;
+    } finally {
+      $('loginBtn').disabled = false;
+    }
+  }
+
+  function logout() {
+    if (pending.length || inFlight.length) { show('err', 'Wait until all scans are saved, then log out.'); return; }
+    const token = session.token;
+    if (token) fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                body: JSON.stringify({ action: 'logout', token: token }) }).catch(() => {});
+    stopApp();
+    showLogin('Logged out.');
+  }
+
+  let refreshTimer = null;
+  function startApp() {
+    $('whoName').textContent = session.user || '-';
+    loadStock();
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(() => {
+      if (!pending.length && !inFlight.length && $('newBox').hidden && $('dlg').hidden && $('login').hidden) loadStock();
+    }, REFRESH_MS);
+    focusScan();
+  }
+
+  function stopApp() {
+    clearInterval(refreshTimer);
+    stock = {};
+    recent = [];
+    undoStack = [];
+    renderRecent();
+    updateUndoButtons();
+    $('card').hidden = true;
+    $('whoName').textContent = '-';
+  }
+
+  let mode = 'add';
+  let scanner = null;
+  const $ = id => document.getElementById(id);
+
+  // The whole stock list is kept in the page, so a scan shows its result instantly.
+  // Scans are saved to the sheet in the background, several at once, in order;
+  // the sheet stays the source of truth and corrects the screen if needed.
+  let stock = {};          // normalized EAN -> {ean, name, brand, location, qty}
+  let recent = [];         // last changes shown at the bottom
+  const pending = [];      // scans waiting to be sent
+  let inFlight = [];       // scans currently being saved
+  let seq = 0;
+  let cardKey = null;      // EAN shown in the product card
+  const norm = e => String(e).trim().replace(/^0+/, '');
+  const sameShelf = (a, b) => String(a).trim().toUpperCase() === String(b).trim().toUpperCase();
+  const clock = () => new Date().toTimeString().slice(0, 8);
+  const REFRESH_MS = 60000; // reload the stock list when idle, to see edits made by others
+  const UNDO_MAX = 10;
+
+  let undoStack = [];      // stock scans that can be undone: {id, ean, d, locSet, prevLoc}
+  let order = {};          // COMANDA NOUA: normalized EAN -> {ean, count}
+  let orderUndo = [];      // keys of the last order scans
+
+  // Auto-apply: a scanner that ends with Enter applies at once; without Enter,
+  // the code is applied after a short pause once it looks like a full barcode.
+  const AUTO_DELAY_MS = 400;
+  const MIN_EAN_LEN = 8;
+  let autoTimer = null;
+
+  // ---------- screen helpers ----------
+
+  function setMode(m) {
+    mode = m;
+    document.querySelectorAll('.modes button').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+    const isOrder = m === 'order';
+    $('stockPanel').hidden = isOrder;
+    $('stockArea').hidden = isOrder;
+    $('orderPanel').hidden = !isOrder;
+    $('orderArea').hidden = !isOrder;
+    $('manualBox').hidden = m !== 'manual';
+    $('ean').value = '';
+    $('manualQty').value = '';
+    const labels = {
+      add: '+1 per scan', remove: '−1 per scan',
+      manual: 'scan EAN, then type the quantity and press Enter',
+      order: 'COMANDA NOUA: scan the products of the order (stock is not changed)'
+    };
+    show('info', 'Mode: ' + labels[m]);
+    focusScan();
+  }
+
+  function focusScan() {
+    if (mode === 'order') $('orderEan').focus();
+    else if (!$('shelf').value) $('shelf').focus();
+    else $('ean').focus();
+  }
+
+  function show(type, text) {
+    $('msg').className = type;
+    $('msg').textContent = text;
+    if (type === 'err') alarm();
+  }
+
+  function alarm() {
+    beep();
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  }
+
+  function beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      o.frequency.value = 300; o.connect(ctx.destination); o.start();
+      setTimeout(() => { o.stop(); ctx.close(); }, 250);
+    } catch (e) {}
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
+  // "Nume produs · Brand · EAN 590…" for messages
+  function label(p) {
+    return [p.name || '(no name)', p.brand, 'EAN ' + p.ean].filter(Boolean).join(' · ');
+  }
+
+  function fillShelves(list) {
+    ['shelf', 'newLoc'].forEach(id => {
+      const sel = $(id), keep = sel.value;
+      sel.innerHTML = '<option value="">— select raft —</option>' +
+        list.map(s => '<option value="' + esc(s) + '">' + esc(s) + '</option>').join('');
+      if (keep) setSelect(sel, keep);
+    });
+    markShelf();
+  }
+
+  // Selects a shelf, adding it to the list if the sheet uses one that is not in the dropdown.
+  function setSelect(sel, value) {
+    if (![].some.call(sel.options, o => o.value === value)) {
+      const o = document.createElement('option');
+      o.value = value; o.textContent = value;
+      sel.appendChild(o);
+    }
+    sel.value = value;
+  }
+
+  function markShelf() { $('shelf').classList.toggle('missing', !$('shelf').value); }
+
+  function showProduct(p) {
+    cardKey = norm(p.ean);
+    $('card').hidden = false;
+    $('pName').textContent = p.name || '(no name)';
+    $('pBrand').textContent = p.brand || '';
+    $('pEan').textContent = p.ean;
+    $('pLoc').textContent = p.location || '-';
+    $('pQty').textContent = p.qty;
+  }
+
+  function addRecent(entry) {
+    recent.unshift(entry);
+    recent = recent.slice(0, 5);
+    renderRecent();
+  }
+
+  function setRecentState(id, saved) {
+    const i = recent.findIndex(r => r.id === id);
+    if (i < 0) return;
+    if (saved) recent[i].pending = false; else recent.splice(i, 1);
+    renderRecent();
+  }
+
+  function setSync() {
+    const n = pending.length + inFlight.length;
+    $('sync').className = n ? 'saving' : '';
+    $('sync').textContent = n ? 'Saving ' + n + '…' : '✓ Saved';
+  }
+
+  function renderRecent() {
+    if (!recent.length) { $('recent').innerHTML = '<li class="empty">No stock changes yet.</li>'; return; }
+    $('recent').innerHTML = recent.map(r => {
+      // change is null for a paste in the sheet, where the old quantity is unknown
+      const cls = (r.change == null ? '' : r.change > 0 ? 'in' : 'out') + (r.pending ? ' pending' : '');
+      const chg = r.change == null ? '✎' : (r.change > 0 ? '+' : '') + r.change;
+      return '<li class="' + cls + '">' +
+        '<div class="chg">' + esc(chg) + '</div>' +
+        '<div class="info"><div class="nm">' + esc(r.name || r.ean) + (r.brand ? ' · ' + esc(r.brand) : '') + '</div>' +
+        '<div class="sub">' + esc(r.time) + ' · ' + esc(r.type) + ' · EAN ' + esc(r.ean) +
+        (r.location ? ' · Raft ' + esc(r.location) : '') + '</div></div>' +
+        '<div class="qa">' + esc(r.before) + ' → <b>' + esc(r.after) + '</b></div></li>';
+    }).join('');
+  }
+
+  function recentEntry(id, p, type, change, before, after, isPending) {
+    return { id: id, time: clock(), ean: p.ean, name: p.name, brand: p.brand, location: p.location,
+             type: type, change: change, before: before, after: after, pending: isPending };
+  }
+
+  function updateUndoButtons() {
+    $('undoStock').textContent = 'UNDO' + (undoStack.length ? ' (' + undoStack.length + ')' : '');
+    $('undoStock').disabled = !undoStack.length;
+    $('undoOrder').textContent = 'UNDO' + (orderUndo.length ? ' (' + orderUndo.length + ')' : '');
+    $('undoOrder').disabled = !orderUndo.length;
+  }
+
+  function pushUndo(entry) {
+    undoStack.push(entry);
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+    updateUndoButtons();
+  }
+
+  function dropUndo(id) {
+    undoStack = undoStack.filter(u => u.id !== id);
+    updateUndoButtons();
+  }
+
+  // ---------- YES / NO questions ----------
+
+  let dlgHandlers = null;
+
+  function ask(kind, html, yesLabel, noLabel, onYes, onNo) {
+    clearTimeout(autoTimer);
+    $('dlgBox').className = 'dlgbox ' + kind;
+    $('dlgText').innerHTML = html;
+    $('dlgYes').textContent = yesLabel;
+    $('dlgNo').textContent = noLabel;
+    dlgHandlers = { yes: onYes, no: onNo };
+    $('dlg').hidden = false;
+    $('dlgBox').focus(); // keeps scanner input away from the fields while the question is open
+    alarm();
+  }
+
+  function answer(which) {
+    const h = dlgHandlers;
+    dlgHandlers = null;
+    $('dlg').hidden = true;
+    if (h && h[which]) h[which]();
+  }
+
+  // A question or the new-product form is open: scans are not accepted until it is answered.
+  function blocked() {
+    if (!$('dlg').hidden) { $('dlgBox').focus(); return true; }
+    if (!$('newBox').hidden) { show('err', 'Finish or cancel the new product first.'); return true; }
+    return false;
+  }
+
+  function askAddProduct(ean, qty, loc) {
+    ask('ask',
+      'EAN <span class="prod">' + esc(ean) + '</span> is <b>not in the stock list</b>.<br><br>' +
+      'Add it at the bottom of the list?',
+      'YES, add it', 'NO',
+      () => openNew(ean, qty, loc),
+      () => { show('info', 'Not added. EAN ' + ean + ' was ignored.'); focusScan(); });
+  }
+
+  function askChangeShelf(p, selected) {
+    ask('warn',
+      '<span class="prod">' + esc(p.name || '(no name)') + '</span>' +
+      (p.brand ? ' · ' + esc(p.brand) : '') + '<div class="sub">EAN ' + esc(p.ean) + '</div><br>' +
+      'is stored on raft <span class="big">' + esc(p.location) + '</span><br>' +
+      'but raft <b>' + esc(selected) + '</b> is selected.<br><br>' +
+      'Change the raft to <b>' + esc(p.location) + '</b> and rescan the product?',
+      'YES, change to ' + p.location, 'NO',
+      () => {
+        setSelect($('shelf'), p.location.trim());
+        markShelf();
+        show('info', 'Raft ' + p.location + ' selected. Rescan the product.');
+        $('ean').focus();
+      },
+      () => { show('err', 'Scan refused: ' + (p.name || p.ean) + ' belongs on raft ' + p.location + '.'); focusScan(); });
+  }
+
+  // ---------- +1 / -1 / MANUAL ----------
+
+  // Called when the EAN field holds a complete code (Enter, Tab or auto-delay).
+  function eanEntered() {
+    clearTimeout(autoTimer);
+    const ean = $('ean').value.trim();
+    if (!ean) return;
+    if (blocked()) { $('ean').value = ''; return; }
+    if (mode === 'manual') {
+      const p = stock[norm(ean)];
+      if (!p) {
+        $('ean').value = '';
+        askAddProduct(ean, '', $('shelf').value);
+        return;
+      }
+      showProduct(p);
+      show('info', label(p) + ' · raft ' + (p.location || '-') + ' · stock ' + p.qty + '. Now type the quantity and press Enter.');
+      $('manualQty').value = '';
+      $('manualQty').focus();
+      return;
+    }
+    $('ean').value = '';
+    $('ean').focus();
+    stockScan(ean, mode === 'add' ? 1 : -1);
+  }
+
+  function manualApply() {
+    const raw = $('manualQty').value.trim();
+    // A barcode scanned into the quantity field by mistake: treat it as the next EAN.
+    if (raw.replace('-', '').length >= MIN_EAN_LEN) {
+      $('ean').value = raw.replace('-', '');
+      $('manualQty').value = '';
+      show('err', 'That looked like a barcode, not a quantity. EAN updated; type the quantity.');
+      eanEntered();
+      return;
+    }
+    const ean = $('ean').value.trim();
+    if (!ean) { show('err', 'Scan the EAN first.'); $('ean').focus(); return; }
+    const d = parseInt(raw, 10);
+    if (!d || isNaN(d)) { show('err', 'Enter a non-zero whole number for the quantity.'); $('manualQty').focus(); return; }
+    $('ean').value = '';
+    $('manualQty').value = '';
+    $('ean').focus();
+    stockScan(ean, d);
+  }
+
+  function stockScan(ean, d) {
+    if (blocked()) return;
+    const sel = $('shelf').value;
+    if (!sel) { show('err', 'Select a raft first.'); markShelf(); $('shelf').focus(); return; }
+
+    const p = stock[norm(ean)];
+    if (!p) {
+      askAddProduct(ean, d > 0 ? d : 0, sel);
+      return;
+    }
+
+    const job = { id: ++seq, ean: p.ean, d: d, loc: sel, applied: false };
+    const before = p.qty, after = before + d;
+    if (p.location.trim() && !sameShelf(p.location, sel)) {
+      showProduct(p);
+      show('err', 'Wrong raft: ' + label(p) + ' is stored on raft ' + p.location + '.');
+      askChangeShelf(p, sel);
+    } else if (after < 0) {
+      showProduct(p);
+      show('err', label(p) + ': ' + (before === 0 ? 'stock is already 0, nothing to remove.' : 'only ' + before + ' in stock, cannot remove ' + (-d) + '.'));
+    } else {
+      const locSet = !p.location.trim();
+      job.locSet = locSet;
+      if (locSet) p.location = sel;
+      p.qty = after;
+      job.applied = true;
+      pushUndo({ id: job.id, ean: p.ean, d: d, locSet: locSet, prevLoc: '' });
+      showProduct(p);
+      show('ok', (d > 0 ? '+' : '') + d + ' → ' + label(p) + ' · now ' + after +
+                 (locSet ? ' · raft ' + sel + ' assigned' : ''));
+      addRecent(recentEntry(job.id, p, d > 0 ? 'IN' : 'OUT', d, before, after, true));
+    }
+    // Every scan of a known product goes to the server, so refused scans are logged too.
+    send(job);
+  }
+
+  function undoStock() {
+    if (blocked()) return;
+    const u = undoStack.pop();
+    updateUndoButtons();
+    if (!u) { show('info', 'Nothing to undo.'); return; }
+    const d = -u.d;
+    const job = { id: ++seq, ean: u.ean, d: d, undo: true, applied: false };
+    if (u.locSet) job.restoreLoc = u.prevLoc;
+    const p = stock[norm(u.ean)];
+    if (p) {
+      const before = p.qty, after = before + d;
+      if (after < 0) {
+        show('err', 'Undo not possible: only ' + before + ' in stock now.');
+        return;
+      }
+      p.qty = after;
+      if (u.locSet) { p.location = u.prevLoc; job.locSet = true; }
+      job.applied = true;
+      showProduct(p);
+      show('ok', 'UNDO: ' + (d > 0 ? '+' : '') + d + ' → ' + label(p) + ' · now ' + after +
+                 (u.locSet ? ' · raft removed' : ''));
+      addRecent(recentEntry(job.id, p, 'UNDO', d, before, after, true));
+    }
+    send(job);
+    focusScan();
+  }
+
+  function send(job) {
+    pending.push(job);
+    setSync();
+    flush();
+  }
+
+  // Sum of the scans already shown on screen but not yet confirmed by the server.
+  function unconfirmed(key) {
+    return pending.concat(inFlight)
+      .filter(j => j.applied && norm(j.ean) === key)
+      .reduce((s, j) => s + j.d, 0);
+  }
+
+  // Shelf the product will have once the unconfirmed scans are saved (null = no change).
+  function unconfirmedLoc(key) {
+    let loc = null;
+    pending.concat(inFlight).forEach(j => {
+      if (!j.applied || !j.locSet || norm(j.ean) !== key) return;
+      loc = j.undo ? (j.restoreLoc || '') : j.loc;
+    });
+    return loc;
+  }
+
+  function flush() {
+    if (inFlight.length || !pending.length) return;
+    inFlight = pending.splice(0, pending.length);
+    const batch = inFlight;
+    google.script.run
+      .withSuccessHandler(results => {
+        inFlight = [];
+        results.forEach((r, k) => handleResult(batch[k], r));
+        setSync();
+        flush();
+      })
+      .withFailureHandler(e => {
+        inFlight = [];
+        batch.forEach(j => { setRecentState(j.id, false); dropUndo(j.id); });
+        show('err', 'NOT SAVED (' + batch.length + ' scans), please scan again. ' + e.message);
+        $('sync').className = 'err';
+        $('sync').textContent = 'Connection problem';
+        loadStock(); // put the screen back in line with the sheet
+      })
+      .applyChanges(batch.map(j => {
+        const o = { id: j.id, ean: j.ean, d: j.d };
+        if (j.undo) { o.undo = true; if (j.restoreLoc != null) o.restoreLoc = j.restoreLoc; }
+        else o.loc = j.loc;
+        return o;
+      }));
+  }
+
+  function handleResult(job, r) {
+    if (r.product) {
+      const key = norm(r.product.ean);
+      r.product.qty += unconfirmed(key); // keep later scans that are still on their way
+      const loc = unconfirmedLoc(key);
+      if (loc !== null) r.product.location = loc;
+      stock[key] = r.product;
+      if (cardKey === key) showProduct(r.product);
+    }
+    if (r.ok) {
+      if (job.applied) {
+        setRecentState(job.id, true);
+      } else {
+        // The page had an outdated quantity or shelf; the sheet accepted the scan.
+        if (!job.undo) pushUndo({ id: job.id, ean: r.product.ean, d: job.d, locSet: r.locChanged, prevLoc: r.prevLoc || '' });
+        show('ok', (job.undo ? 'UNDO: ' : '') + (job.d > 0 ? '+' : '') + job.d + ' → ' + label(r.product) + ' · now ' + r.after);
+        addRecent(recentEntry(job.id, r.product, job.undo ? 'UNDO' : (job.d > 0 ? 'IN' : 'OUT'), job.d, r.before, r.after, false));
+      }
+    } else if (job.applied) {
+      // Shown as done, but the sheet refused it (for example someone else took the last piece,
+      // or the product was removed from the list).
+      setRecentState(job.id, false);
+      dropUndo(job.id);
+      show('err', r.error);
+      if (r.notFound) loadStock();
+    }
+  }
+
+  function loadStock() {
+    google.script.run
+      .withSuccessHandler(res => {
+        stock = res.stock;
+        // keep scans made while loading
+        pending.concat(inFlight).filter(j => j.applied).forEach(j => {
+          const p = stock[norm(j.ean)];
+          if (!p) return;
+          p.qty += j.d;
+          if (j.locSet) p.location = j.undo ? (j.restoreLoc || '') : j.loc;
+        });
+        fillShelves(res.shelves || []);
+        if (!pending.length && !inFlight.length) recent = res.recent;
+        renderRecent();
+        renderOrder();
+        setSync();
+      })
+      .withFailureHandler(e => {
+        $('sync').className = 'err';
+        $('sync').textContent = 'Could not load stock';
+        show('err', 'Could not load stock: ' + e.message);
+      })
+      .getInit();
+  }
+
+  // ---------- new product ----------
+
+  function openNew(ean, qty, loc) {
+    $('newEan').textContent = ean;
+    $('newQty').value = qty;
+    $('newName').value = '';
+    $('newBrand').value = '';
+    $('newLoc').value = '';
+    if (loc) setSelect($('newLoc'), loc);
+    $('newBox').hidden = false;
+    show('info', 'Fill in the new product, then Save.');
+    $('newName').focus();
+  }
+
+  function closeNew() {
+    $('newBox').hidden = true;
+    focusScan();
+  }
+
+  function cancelNew() {
+    show('info', 'Cancelled. The product was not added.');
+    closeNew();
+  }
+
+  function saveNew() {
+    const ean = $('newEan').textContent;
+    const name = $('newName').value.trim();
+    const qty = $('newQty').value === '' ? 0 : Number($('newQty').value);
+    if (!name) { show('err', 'Type the product name.'); $('newName').focus(); return; }
+    if (!$('newLoc').value) { show('err', 'Select the raft for the new product.'); $('newLoc').focus(); return; }
+    if (!(qty >= 0) || Math.floor(qty) !== qty) { show('err', 'Starting quantity must be 0 or more.'); $('newQty').focus(); return; }
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.exists) {
+          // Someone added it meanwhile: use the sheet's version.
+          stock[norm(res.product.ean)] = res.product;
+          showProduct(res.product);
+          show('err', res.error + ' Scan it again.');
+          closeNew();
+          renderOrder();
+          return;
+        }
+        if (!res.ok) { show('err', res.error); return; }
+        const p = res.product;
+        stock[norm(p.ean)] = p;
+        addRecent(recentEntry('new' + (++seq), p, 'NEW', p.qty, 0, p.qty, false));
+        showProduct(p);
+        show('ok', 'Added at the bottom of the list: ' + label(p) + ' · qty ' + p.qty + ' · raft ' + p.location);
+        closeNew();
+        renderOrder();
+      })
+      .withFailureHandler(e => show('err', 'Error: ' + e.message))
+      .addProduct(ean, name, $('newBrand').value.trim(), $('newLoc').value, qty);
+  }
+
+  // ---------- COMANDA NOUA ----------
+
+  function storeOrder() {
+    try { localStorage.setItem('wmsOrder', JSON.stringify({ order: order, undo: orderUndo })); } catch (e) {}
+  }
+
+  function restoreOrder() {
+    try {
+      const s = JSON.parse(localStorage.getItem('wmsOrder') || 'null');
+      if (s) { order = s.order || {}; orderUndo = s.undo || []; }
+    } catch (e) {}
+  }
+
+  function orderEntered() {
+    clearTimeout(autoTimer);
+    const ean = $('orderEan').value.trim();
+    $('orderEan').value = '';
+    if (!ean) return;
+    if (blocked()) return;
+    $('orderEan').focus();
+    orderScan(ean);
+  }
+
+  function orderScan(ean) {
+    const key = norm(ean);
+    const line = order[key] || { ean: ean, count: 0 };
+    line.count++;
+    order[key] = line;
+    orderUndo.push(key);
+    if (orderUndo.length > UNDO_MAX) orderUndo.shift();
+    storeOrder();
+    renderOrder();
+    updateUndoButtons();
+    const p = stock[key];
+    if (!p) {
+      show('err', 'EAN ' + ean + ' is not in the stock list (kept in the order).');
+      askAddProduct(ean, 0, '');
+    } else if (p.qty < line.count) {
+      show('err', 'Raft ' + (p.location || '-') + ' · ' + label(p) + ' · only ' + p.qty + ' in stock, order needs ' + line.count);
+    } else {
+      show('ok', 'Raft ' + (p.location || '-') + ' · ' + label(p) + ' · x' + line.count);
+    }
+  }
+
+  function undoOrder() {
+    if (blocked()) return;
+    const key = orderUndo.pop();
+    updateUndoButtons();
+    if (!key || !order[key]) { show('info', 'Nothing to undo.'); return; }
+    order[key].count--;
+    const name = stock[key] ? label(stock[key]) : 'EAN ' + order[key].ean;
+    if (order[key].count <= 0) delete order[key];
+    storeOrder();
+    renderOrder();
+    show('ok', 'UNDO: removed one ' + name + ' from the order.');
+    $('orderEan').focus();
+  }
+
+  function orderLines() {
+    return Object.keys(order).map(key => {
+      const p = stock[key];
+      return { key: key, ean: p ? p.ean : order[key].ean, count: order[key].count,
+               name: p ? p.name : '', brand: p ? p.brand : '',
+               location: p ? p.location : '', stock: p ? p.qty : null };
+    }).sort((a, b) => (a.location || '~').localeCompare(b.location || '~', undefined, { numeric: true }));
+  }
+
+  function renderOrder() {
+    const lines = orderLines();
+    const pcs = lines.reduce((s, l) => s + l.count, 0);
+    $('orderSum').textContent = lines.length
+      ? lines.length + ' products · ' + pcs + ' pieces · sorted by raft'
+      : 'No products scanned yet.';
+    $('orderRows').innerHTML = lines.map(l => {
+      const warn = l.stock === null || l.stock < l.count;
+      return '<tr class="' + (warn ? 'warn' : '') + '">' +
+        '<td class="raft">' + esc(l.location || '?') + '</td>' +
+        '<td>' + esc(l.name || '(not in stock list)') +
+        (l.brand ? '<div class="br">' + esc(l.brand) + '</div>' : '') +
+        '<div class="ean">EAN ' + esc(l.ean) + '</div></td>' +
+        '<td class="num">' + l.count + '</td>' +
+        '<td class="num">' + (l.stock === null ? '-' : l.stock) + '</td></tr>';
+    }).join('');
+  }
+
+  function saveOrder() {
+    const lines = orderLines();
+    if (!lines.length) { show('err', 'The order is empty.'); return; }
+    $('saveOrderBtn').disabled = true;
+    google.script.run
+      .withSuccessHandler(res => {
+        $('saveOrderBtn').disabled = false;
+        if (!res.ok) { show('err', res.error); return; }
+        show('ok', 'Order saved as ' + res.orderId + ' (' + res.lines + ' lines) in the Comenzi tab.');
+      })
+      .withFailureHandler(e => { $('saveOrderBtn').disabled = false; show('err', 'Order NOT saved: ' + e.message); })
+      .saveOrder(lines.map(l => ({ ean: l.ean, count: l.count })));
+  }
+
+  let clearArmed = null;
+  function clearOrder() {
+    if (!clearArmed) {
+      $('clearOrderBtn').textContent = 'Tap again to clear';
+      clearArmed = setTimeout(() => { clearArmed = null; $('clearOrderBtn').textContent = 'Clear order'; }, 3000);
+      return;
+    }
+    clearTimeout(clearArmed);
+    clearArmed = null;
+    $('clearOrderBtn').textContent = 'Clear order';
+    order = {};
+    orderUndo = [];
+    storeOrder();
+    renderOrder();
+    updateUndoButtons();
+    show('info', 'Order cleared. Scan the next order.');
+    $('orderEan').focus();
+  }
+
+  // ---------- inputs ----------
+
+  function autoApply(input, fn) {
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); fn(); }
+    });
+    input.addEventListener('input', () => {
+      clearTimeout(autoTimer);
+      const v = input.value.trim();
+      if (/^\d+$/.test(v) && v.length >= MIN_EAN_LEN) autoTimer = setTimeout(fn, AUTO_DELAY_MS);
+    });
+  }
+  autoApply($('ean'), eanEntered);
+  autoApply($('orderEan'), orderEntered);
+  $('manualQty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); manualApply(); } });
+  $('shelf').addEventListener('change', () => {
+    markShelf();
+    if ($('shelf').value) { show('info', 'Raft ' + $('shelf').value + ' selected. Scan EAN.'); $('ean').focus(); }
+  });
+  $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('newBrand').focus(); });
+  $('newBrand').addEventListener('keydown', e => { if (e.key === 'Enter') $('newLoc').focus(); });
+  $('newQty').addEventListener('keydown', e => { if (e.key === 'Enter') saveNew(); });
+
+  $('dlgYes').addEventListener('click', () => answer('yes'));
+  $('dlgNo').addEventListener('click', () => answer('no'));
+  // While a question is open, keys from the scanner (including its Enter) must not answer it.
+  $('dlgBox').addEventListener('keydown', e => e.preventDefault());
+
+  // Optional phone camera scanning (a USB/Bluetooth scanner works without this).
+  let lastCode = '', lastTime = 0;
+  function toggleCamera() {
+    if (scanner) {
+      scanner.stop().then(() => { scanner.clear(); scanner = null; });
+      return;
+    }
+    if (typeof Html5Qrcode === 'undefined') { show('err', 'Camera library did not load.'); return; }
+    scanner = new Html5Qrcode('reader', {
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.CODE_128
+      ]
+    });
+    scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 260, height: 120 } }, code => {
+      const now = Date.now();
+      if (code === lastCode && now - lastTime < 2000) return; // ignore the same code read twice in a row
+      lastCode = code; lastTime = now;
+      if (blocked()) return;
+      if (mode === 'order') { orderScan(code); return; }
+      $('ean').value = code;
+      eanEntered();
+    }).catch(err => { scanner = null; show('err', 'Camera not available: ' + err); });
+  }
+
+  $('loginCode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doLogin(); } });
+
+  restoreOrder();
+  renderOrder();
+  updateUndoButtons();
+  markShelf();
+  if (session.token) startApp(); else showLogin('');
+</script>
+</body>
+</html>
