@@ -289,7 +289,9 @@
     }
     if (!data.ok) {
       if (data.auth) showLogin(data.error);
-      throw new Error(data.error || 'Unknown error');
+      const err = new Error(data.error || 'Unknown error');
+      err.auth = !!data.auth; // logged out: retrying would not help
+      throw err;
     }
     if (data.user && data.user !== session.user) { // name corrected in the employee list
       session.user = data.user;
@@ -777,7 +779,16 @@
   function flush() {
     if (inFlight.length || !pending.length) return;
     inFlight = pending.splice(0, pending.length);
-    const batch = inFlight;
+    sendBatch(inFlight, newReqId(), 0);
+  }
+
+  // Waits before each automatic new attempt when Google sends an error page or the connection drops.
+  const RETRY_DELAYS_MS = [1000, 3000, 6000];
+  function newReqId() { return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12); }
+
+  // Sends one batch of scans. A failed batch is sent again with the SAME reqId: if Google had
+  // already applied it and only the answer was lost, the server returns that answer and applies nothing twice.
+  function sendBatch(batch, reqId, attempt) {
     google.script.run
       .withSuccessHandler(results => {
         inFlight = [];
@@ -786,6 +797,12 @@
         flush();
       })
       .withFailureHandler(e => {
+        if (!e.auth && attempt < RETRY_DELAYS_MS.length) {
+          $('sync').className = 'saving';
+          $('sync').textContent = 'Google busy, retrying (' + (attempt + 1) + ')…';
+          setTimeout(() => sendBatch(batch, reqId, attempt + 1), RETRY_DELAYS_MS[attempt]);
+          return;
+        }
         inFlight = [];
         batch.forEach(j => { setRecentState(j.id, false); dropUndo(j.id); });
         show('err', 'NOT SAVED (' + batch.length + ' scans), please scan again. ' + e.message);
@@ -799,7 +816,7 @@
         if (j.undo) { o.undo = true; if (j.restoreLoc != null) o.restoreLoc = j.restoreLoc; }
         else o.loc = j.loc;
         return o;
-      }));
+      }), reqId);
   }
 
   function handleResult(job, r) {
