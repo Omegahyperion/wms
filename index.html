@@ -19,6 +19,7 @@
   .who { font-size: 13px; color: #444; margin: -6px 0 10px; display: flex; justify-content: space-between; align-items: center; }
   .who b { color: #1a56c4; }
   .linkbtn { background: none; border: 0; color: #c5221f; font-weight: 700; font-size: 13px; cursor: pointer; padding: 4px 0; }
+  .linkbtn.sound { color: #1a56c4; margin-right: 14px; }
   #login .dlgbox { border-top: 8px solid #1a56c4; }
   #login h3 { margin: 0 0 6px; font-size: 20px; }
   #loginMsg { min-height: 22px; color: #c5221f; font-weight: 600; margin: 8px 0; }
@@ -110,7 +111,9 @@
 <body>
 <div class="wrap">
   <div class="top"><h1>Mini WMS</h1><span id="sync" class="saving">Loading stock…</span></div>
-  <div class="who"><span>Logged in as <b id="whoName">-</b></span><button class="linkbtn" onclick="logout()">Logout</button></div>
+  <div class="who"><span>Logged in as <b id="whoName">-</b></span>
+    <span><button class="linkbtn sound" onclick="testSound()">🔊 Test sound</button>
+    <button class="linkbtn" onclick="logout()">Logout</button></span></div>
 
   <div class="modes">
     <button data-mode="add" class="active" onclick="setMode('add')">+1</button>
@@ -484,6 +487,16 @@
   // phone speakers are most sensitive; a square wave sounds much louder than a soft sine).
   function beep() { tone(220, 350, 'square', 0.25); }
   function okSound() { tone(2700, 150, 'square', 0.6); }
+
+  // 🔊 button: plays the success beep so each person can check the phone's volume settings.
+  async function testSound() {
+    const ctx = audio();
+    if (!ctx) { show('err', 'This browser cannot play sounds.'); return; }
+    try { if (ctx.state !== 'running') await ctx.resume(); } catch (e) {}
+    okSound();
+    show('info', 'Test beep played (sound: ' + ctx.state + '). Heard nothing? Turn up the MEDIA volume, ' +
+                 'switch off silent mode / Do Not Disturb, and check that no Bluetooth headphones are connected.');
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
