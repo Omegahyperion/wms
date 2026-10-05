@@ -583,6 +583,11 @@
     else $('ean').focus();
   }
 
+  // "NUMBER OF PIECES - SHELF - Brand - NAME"; empty parts are left out.
+  function scanMsg(pieces, p, shelf) {
+    return [pieces, shelf || p.location, p.brand, p.name || p.ean].filter(x => String(x == null ? '' : x).trim() !== '').join(' - ');
+  }
+
   function show(type, text) {
     $('msg').className = type;
     $('msg').textContent = text;
@@ -926,7 +931,7 @@
     showProduct(p);
     if (mode === 'remove') {
       // "NUMBER OF PIECES - SHELF - Brand - NAME"
-      show('ok', [-d, sel, p.brand, p.name || p.ean].filter(x => String(x).trim() !== '').join(' - '));
+      show('ok', scanMsg(-d, p, sel));
       removed.unshift({ id: job.id, ean: p.ean, qty: -d });
       renderRemoved();
     } else {
@@ -1353,6 +1358,7 @@
     if (pick.phase === 'list') {
       const line = pick.lines[key] || { ean: p ? p.ean : ean, need: 0, picked: 0 };
       line.need++;
+      line.t = pick.n = (pick.n || 0) + 1;
       pick.lines[key] = line;
       pushPickUndo({ key: key, kind: 'list' });
       if (!p) {
@@ -1361,7 +1367,7 @@
       } else if (p.qty < line.need) {
         show('err', 'Raft ' + (p.location || '-') + ' · ' + label(p) + ' · only ' + p.qty + ' in stock, order needs ' + line.need);
       } else {
-        show('ok', 'Raft ' + (p.location || '-') + ' · ' + label(p) + ' · x' + line.need);
+        show('ok', scanMsg(line.need, p));
       }
     } else {
       const line = pick.lines[key];
@@ -1374,9 +1380,10 @@
         flashPick(false);
       } else {
         line.picked++;
+        line.t = pick.n = (pick.n || 0) + 1;
         pushPickUndo({ key: key, kind: 'pick' });
         const t = pickTotals();
-        show('ok', '✓ ' + name + ' · ' + line.picked + '/' + line.need +
+        show('ok', '✓ ' + (p ? scanMsg(line.picked + '/' + line.need, p) : name) +
                    (t.picked === t.need ? ' · ORDER COMPLETE – press FINISH ORDER' : ''));
         flashPick(true);
       }
@@ -1423,7 +1430,7 @@
   function pickLines() {
     return Object.keys(pick.lines).map(key => {
       const p = productFor(key), l = pick.lines[key];
-      return { key: key, ean: p ? p.ean : l.ean, need: l.need, picked: l.picked,
+      return { key: key, ean: p ? p.ean : l.ean, need: l.need, picked: l.picked, t: l.t || 0,
                name: p ? p.name : '', brand: p ? p.brand : '', location: p ? p.location : '', stock: p ? p.qty : null };
     }).sort((a, b) => byShelf(a.location, b.location));
   }
@@ -1441,8 +1448,8 @@
     $('pickLabel').textContent = picking ? 'Scan each product as you take it' : 'Scan the products from the packing list';
     $('pickColQty').textContent = picking ? 'Luat' : 'Buc';
     $('pickSum').textContent = !lines.length ? 'No products scanned yet.'
-      : picking ? 'Order ' + pick.orderId + ' · picked ' + t.picked + ' / ' + t.need + ' pieces · sorted by raft'
-                : lines.length + ' products · ' + t.need + ' pieces · sorted by raft';
+      : picking ? 'Order ' + pick.orderId + ' · picked ' + t.picked + ' / ' + t.need + ' pieces · latest scan on top'
+                : lines.length + ' products · ' + t.need + ' pieces · latest scan on top';
 
     const next = lines.find(l => l.picked < l.need);
     $('pickTarget').hidden = !picking;
@@ -1459,7 +1466,8 @@
       }
     }
 
-    $('pickRows').innerHTML = lines.map(l => {
+    // newest scan on top (the target card above still follows the raft order)
+    $('pickRows').innerHTML = lines.slice().sort((a, b) => b.t - a.t).map(l => {
       const short = l.stock === null || l.stock < l.need;
       const cls = picking ? (l.picked >= l.need ? 'done' : l === next ? 'cur' : short ? 'warn' : '') : (short ? 'warn' : '');
       return '<tr class="' + cls + '">' +
@@ -1468,7 +1476,7 @@
         (l.brand ? '<div class="br">' + esc(l.brand) + '</div>' : '') +
         '<div class="ean">EAN ' + esc(l.ean) + '</div></td>' +
         '<td class="num">' + (picking ? l.picked + '/' + l.need : l.need) + '</td>' +
-        '<td class="num">' + (l.stock === null ? '-' : l.stock) + '</td></tr>';
+        '<td class="stoc">STOC <b>' + (l.stock === null ? '-' : l.stock) + '</b></td></tr>';
     }).join('');
     updateUndoButtons();
   }
@@ -1613,6 +1621,7 @@
     const p = productFor(key);
     const c = inv.counted[key] || { ean: p ? p.ean : ean, count: 0 };
     c.count += n;
+    c.t = inv.n = (inv.n || 0) + 1;
     inv.counted[key] = c;
     inv.undo.push({ key: key, n: n });
     if (inv.undo.length > UNDO_MAX) inv.undo.shift();
@@ -1625,7 +1634,7 @@
     } else if (p.location.trim() && !sameShelf(p.location, inv.shelf)) {
       show('err', label(p) + ' is registered on raft ' + p.location + ', not ' + inv.shelf + ' (counted: ' + c.count + '). It will not be corrected here.');
     } else {
-      show('ok', '✓ ' + label(p) + ' · counted ' + c.count + (n > 1 ? ' (+' + n + ')' : ''));
+      show('ok', '✓ ' + scanMsg(c.count, p, inv.shelf));
     }
   }
 
@@ -1653,8 +1662,8 @@
       return { key: key, ean: p ? p.ean : c.ean, name: p ? p.name : '', brand: p ? p.brand : '',
                location: p ? p.location : '', sheet: p ? p.qty : null, counted: counted,
                unknown: !p, other: !!(p && p.location.trim() && !sameShelf(p.location, inv.shelf)),
-               diff: p ? counted - p.qty : 0 };
-    }).sort((a, b) => (a.name || a.ean).localeCompare(b.name || b.ean));
+               diff: p ? counted - p.qty : 0, t: c ? c.t || 0 : 0 };
+    }).sort((a, b) => b.t - a.t || (a.name || a.ean).localeCompare(b.name || b.ean)); // newest scan on top
   }
 
   function renderInv() {
@@ -1685,7 +1694,7 @@
       return '<tr class="' + cls + '">' +
         '<td>' + esc(l.name || '(unknown)') + (l.brand ? '<div class="br">' + esc(l.brand) + '</div>' : '') +
         '<div class="ean">EAN ' + esc(l.ean) + (note ? ' · ' + esc(note) : '') + '</div></td>' +
-        '<td class="num">' + (l.sheet === null ? '-' : l.sheet) + '</td>' +
+        '<td class="stoc">STOC <b>' + (l.sheet === null ? '-' : l.sheet) + '</b></td>' +
         '<td class="num">' + l.counted + '</td>' +
         (review ? '<td class="num ' + (l.diff > 0 ? 'plus' : 'minus') + '">' + (l.unknown || l.other ? '' : (l.diff > 0 ? '+' : '') + l.diff) + '</td>' : '') +
         '</tr>';
