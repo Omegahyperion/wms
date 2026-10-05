@@ -308,7 +308,7 @@
 
   // Version of this page. The server (Code.gs) has its own WMS_VERSION; when they differ,
   // a red banner tells which side needs updating.
-  const PAGE_VERSION = 20;
+  const PAGE_VERSION = 21;
 
   // ---------- connection to the Google Apps Script API ----------
   // Web app URL of the API project (ends with /exec).
@@ -467,6 +467,7 @@
   function stopApp() {
     clearInterval(refreshTimer);
     stock = {};
+    restIndex = {};
     recent = [];
     undoStack = [];
     renderRecent();
@@ -642,7 +643,7 @@
 
   // "Nume produs · Brand · EAN 590…" for messages
   function label(p) {
-    return [p.name || '(no name)', p.brand, 'EAN ' + p.ean].filter(Boolean).join(' · ');
+    return [p.name || (p.partial ? '…' : '(no name)'), p.brand, 'EAN ' + p.ean].filter(Boolean).join(' · ');
   }
 
   function fillShelves(list) {
@@ -798,7 +799,7 @@
 
   function askWrongShelf(p, selected, d) {
     ask('warn',
-      '<span class="prod">' + esc(p.name || '(no name)') + '</span>' +
+      '<span class="prod">' + esc(p.name || (p.partial ? '…' : '(no name)')) + '</span>' +
       (p.brand ? ' · ' + esc(p.brand) : '') + '<div class="sub">EAN ' + esc(p.ean) + ' · stoc ' + p.qty + '</div><br>' +
       'Raft original: <span class="big">' + esc(p.location) + '</span> &nbsp; Raft selectat: <b>' + esc(selected) + '</b><br><br>' +
       '<div class="tip">Acest produs se află deja la alt raft. Poți alege să muți acest produs la raftul original și îți voi ' +
@@ -876,7 +877,7 @@
     const sel = $('shelf').value;
     if (!sel) { show('err', 'Select a raft first.'); markShelf(); $('shelf').focus(); return false; }
 
-    const p = stock[norm(ean)];
+    const p = productFor(ean);
     if (!p) {
       askAddProduct(ean, d > 0 ? d : 0, sel);
       return false;
@@ -1102,12 +1103,14 @@
     google.script.run
       .withSuccessHandler(res => {
         stock = res.stock;
+        restIndex = {};
+        (res.rest || []).forEach(r => { restIndex[norm(r[0])] = r; });
         // keep new products and changes made while loading or kept from before
         pending.concat(inFlight).filter(j => j.add).forEach(j => {
           if (!stock[norm(j.ean)]) stock[norm(j.ean)] = newProduct(j);
         });
         pending.concat(inFlight).filter(j => j.applied && !j.add).forEach(j => {
-          const p = stock[norm(j.ean)];
+          const p = productFor(j.ean);
           if (!p) return;
           if (typeof j.d === 'number') p.qty += j.d;
           if (j.locSet) p.location = j.undo ? (j.restoreLoc || '') : j.loc;
@@ -1126,7 +1129,50 @@
         $('sync').textContent = 'Could not load stock';
         show('err', 'Could not load stock: ' + e.message);
       })
-      .getInit();
+      .getInit({ compact: true });
+  }
+
+  // Products without stock come as a short list (EAN, raft, quantity) to keep the download small.
+  // productFor() turns such an entry into a product when it is used; its name and brand follow
+  // a moment later from the server.
+  let restIndex = {};
+  function productFor(ean) {
+    const key = norm(ean);
+    if (stock[key]) return stock[key];
+    const r = restIndex[key];
+    if (!r) return null;
+    const p = { ean: r[0], name: '', brand: '', location: r[1] || '', qty: Number(r[2]) || 0, partial: true };
+    stock[key] = p;
+    delete restIndex[key];
+    requestDetails(key);
+    return p;
+  }
+
+  let detailKeys = [], detailTimer = null;
+  function requestDetails(key) {
+    detailKeys.push(key);
+    clearTimeout(detailTimer);
+    detailTimer = setTimeout(() => {
+      const keys = detailKeys.splice(0, detailKeys.length);
+      google.script.run
+        .withSuccessHandler(found => {
+          Object.keys(found || {}).forEach(k => {
+            const p = stock[k];
+            if (!p || !p.partial) return;
+            // only the descriptions: quantity and raft on screen already include changes not yet saved
+            p.name = found[k].name;
+            p.brand = found[k].brand;
+            p.partial = false;
+            if (cardKey === k) showProduct(p);
+            recent.forEach(r => { if (norm(r.ean) === k) { r.name = p.name; r.brand = p.brand; } });
+          });
+          renderRecent();
+          renderPick();
+          renderInv();
+        })
+        .withFailureHandler(() => {})
+        .getProducts(keys);
+    }, 300);
   }
 
   function checkVersion(v) {
@@ -1260,7 +1306,7 @@
 
   function pickScan(ean) {
     const key = norm(ean);
-    const p = stock[key];
+    const p = productFor(key);
     if (pick.phase === 'list') {
       const line = pick.lines[key] || { ean: p ? p.ean : ean, need: 0, picked: 0 };
       line.need++;
@@ -1333,7 +1379,7 @@
 
   function pickLines() {
     return Object.keys(pick.lines).map(key => {
-      const p = stock[key], l = pick.lines[key];
+      const p = productFor(key), l = pick.lines[key];
       return { key: key, ean: p ? p.ean : l.ean, need: l.need, picked: l.picked,
                name: p ? p.name : '', brand: p ? p.brand : '', location: p ? p.location : '', stock: p ? p.qty : null };
     }).sort((a, b) => byShelf(a.location, b.location));
@@ -1438,7 +1484,7 @@
     const orderId = pick.orderId;
     let pieces = 0;
     lines.forEach(l => {
-      const p = stock[l.key];
+      const p = productFor(l.key);
       if (!l.picked || !p) return;
       const job = { id: ++seq, pick: true, ean: p.ean, d: -l.picked, orderId: orderId, applied: true };
       const before = p.qty;
@@ -1521,7 +1567,7 @@
       return;
     }
     const key = norm(ean);
-    const p = stock[key];
+    const p = productFor(key);
     const c = inv.counted[key] || { ean: p ? p.ean : ean, count: 0 };
     c.count += n;
     inv.counted[key] = c;
@@ -1559,7 +1605,7 @@
     const keys = new Set(Object.keys(inv.counted));
     if (inv.shelf) Object.keys(stock).forEach(k => { if (sameShelf(stock[k].location, inv.shelf)) keys.add(k); });
     return [...keys].map(key => {
-      const p = stock[key], c = inv.counted[key];
+      const p = productFor(key), c = inv.counted[key];
       const counted = c ? c.count : 0;
       return { key: key, ean: p ? p.ean : c.ean, name: p ? p.name : '', brand: p ? p.brand : '',
                location: p ? p.location : '', sheet: p ? p.qty : null, counted: counted,
@@ -1629,7 +1675,7 @@
     if (blocked() || !serverReady()) return;
     const fix = invLines().filter(l => !l.unknown && !l.other && l.diff !== 0);
     fix.forEach(l => {
-      const p = stock[l.key];
+      const p = productFor(l.key);
       const job = { id: ++seq, count: true, ean: p.ean, qty: l.counted, loc: inv.shelf, d: l.counted - p.qty, applied: true };
       const before = p.qty;
       if (!p.location.trim()) { p.location = inv.shelf; job.locSet = true; }
