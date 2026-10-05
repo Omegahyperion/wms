@@ -156,8 +156,10 @@
 
   <!-- +1 / -1 / MANUAL -->
   <div id="stockPanel">
-    <label for="shelf">Raft (shelf)</label>
-    <select id="shelf"><option value="">— select raft —</option></select>
+    <div id="shelfBox">
+      <label for="shelf">Raft (shelf)</label>
+      <select id="shelf"><option value="">— select raft —</option></select>
+    </div>
 
     <div id="manualBox" hidden>
       <label for="manualQty">Quantity to apply per scan (use a minus sign to remove, e.g. -5)</label>
@@ -539,11 +541,12 @@
     $('invPanel').hidden = m !== 'inv';
     $('invArea').hidden = m !== 'inv';
     $('manualBox').hidden = m !== 'manual';
+    $('shelfBox').hidden = m === 'remove';
     $('ean').value = '';
     $('manualQty').value = '';
     placeCamera();
     const labels = {
-      add: '+1 per scan', remove: '−1 per scan',
+      add: '+1 per scan', remove: '−1 per scan (raft is taken from the product, just scan)',
       manual: 'type the quantity, then scan EAN',
       pick: pick.phase === 'pick' ? 'PICKING: go raft by raft and scan each product you take'
                                   : 'PICKING MODE: scan the packing list, then press START PICKING',
@@ -564,7 +567,7 @@
   function focusScan() {
     if (mode === 'pick') { $('pickEan').focus(); return; }
     if (mode === 'inv') { (inv.shelf ? $('invEan') : $('invShelf')).focus(); return; }
-    if (!$('shelf').value) $('shelf').focus();
+    if (!$('shelf').value && mode !== 'remove') $('shelf').focus();
     else if (mode === 'manual' && manualQty() === null) $('manualQty').focus();
     else $('ean').focus();
   }
@@ -874,10 +877,12 @@
   // Returns true when the scan was accepted.
   function stockScan(ean, d) {
     if (blocked()) return false;
-    const sel = $('shelf').value;
-    if (!sel) { show('err', 'Select a raft first.'); markShelf(); $('shelf').focus(); return false; }
-
     const p = productFor(ean);
+    // Removing (−1 / negative MANUAL): the product already has exactly one shelf, so no selection is needed.
+    let sel = $('shelf').value;
+    if (d < 0 && p && p.location.trim()) sel = p.location.trim();
+    if (!sel && d >= 0) { show('err', 'Select a raft first.'); markShelf(); $('shelf').focus(); return false; }
+
     if (!p) {
       askAddProduct(ean, d > 0 ? d : 0, sel);
       return false;
