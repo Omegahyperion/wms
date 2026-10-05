@@ -127,6 +127,8 @@
   .otable .ean { font-size: 12px; color: #666; }
   .otable .br { font-size: 12px; color: #1a56c4; font-weight: 600; }
   .otable .plus { color: #1e9e48; } .otable .minus { color: #d93025; }
+  .otable td.stoc { text-align: right; white-space: nowrap; font-size: 13px; }
+  .otable td.stoc b { font-size: 20px; font-weight: 900; color: #222; }
   .osum { margin: 8px 0; font-weight: 600; color: #444; }
   #pickTarget { border: 4px solid #1a56c4; transition: background .2s; }
   #pickTarget .raft { font-size: 44px; font-weight: 900; color: #1a56c4; line-height: 1; }
@@ -239,6 +241,12 @@
   </div>
 
   <div id="stockArea">
+    <div id="rmWrap" hidden>
+      <div class="otable-wrap"><table class="otable">
+        <thead><tr><th>Raft</th><th>Produs</th><th style="text-align:right">Buc</th><th style="text-align:right">Stoc</th></tr></thead>
+        <tbody id="rmRows"></tbody>
+      </table></div>
+    </div>
     <div id="card" class="card" hidden>
       <div class="name" id="pName"></div>
       <div class="brand" id="pBrand"></div>
@@ -497,6 +505,7 @@
   const clock = () => new Date().toTimeString().slice(0, 8);
   const UNDO_MAX = 10;
 
+  let removed = [];        // −1 mode table: {id, ean, qty}, newest first
   let undoStack = [];      // stock scans that can be undone: {id, ean, d, locSet, prevLoc}
 
   // Auto-apply: a scanner that ends with Enter applies at once; without Enter,
@@ -542,6 +551,8 @@
     $('invArea').hidden = m !== 'inv';
     $('manualBox').hidden = m !== 'manual';
     $('shelfBox').hidden = m === 'remove';
+    $('rmWrap').hidden = m !== 'remove';
+    renderRemoved();
     $('ean').value = '';
     $('manualQty').value = '';
     placeCamera();
@@ -913,8 +924,15 @@
     p.qty = after;
     pushUndo({ id: job.id, ean: p.ean, d: d, locSet: locSet, prevLoc: '' });
     showProduct(p);
-    show('ok', prefix + (d > 0 ? '+' : '') + d + ' → ' + label(p) + ' · now ' + after +
-               (locSet ? ' · raft ' + sel + ' assigned' : ''));
+    if (mode === 'remove') {
+      // "NUMBER OF PIECES - SHELF - Brand - NAME"
+      show('ok', [-d, sel, p.brand, p.name || p.ean].filter(x => String(x).trim() !== '').join(' - '));
+      removed.unshift({ id: job.id, ean: p.ean, qty: -d });
+      renderRemoved();
+    } else {
+      show('ok', prefix + (d > 0 ? '+' : '') + d + ' → ' + label(p) + ' · now ' + after +
+                 (locSet ? ' · raft ' + sel + ' assigned' : ''));
+    }
     addRecent(recentEntry(job.id, p, d > 0 ? 'IN' : 'OUT', d, before, after, true));
     send(job);
   }
@@ -936,11 +954,30 @@
     afterManualScan();
   }
 
+  // −1 mode table: scans of this session, one row per product, the most recently scanned on top.
+  function renderRemoved() {
+    const rows = [], seen = {};
+    removed.forEach(r => {
+      const k = norm(r.ean);
+      if (!seen[k]) { seen[k] = { ean: r.ean, qty: 0 }; rows.push(seen[k]); }
+      seen[k].qty += r.qty;
+    });
+    $('rmRows').innerHTML = rows.length ? rows.map(r => {
+      const p = productFor(r.ean) || { name: '', brand: '', location: '', qty: '?' };
+      return '<tr><td class="raft">' + esc(p.location || '?') + '</td>' +
+        '<td>' + esc(p.name || r.ean) + (p.brand ? '<div class="br">' + esc(p.brand) + '</div>' : '') +
+        '<div class="ean">EAN ' + esc(r.ean) + '</div></td>' +
+        '<td class="num minus">−' + r.qty + '</td>' +
+        '<td class="stoc">STOC <b>' + esc(p.qty) + '</b></td></tr>';
+    }).join('') : '<tr><td colspan="4" class="empty">Scan a product to remove it.</td></tr>';
+  }
+
   function undoStock() {
     if (blocked()) return;
     const u = undoStack.pop();
     updateUndoButtons();
     if (!u) { show('info', 'Nothing to undo.'); return; }
+    removed = removed.filter(r => r.id !== u.id);
     const d = -u.d;
     const job = { id: ++seq, ean: u.ean, d: d, undo: true, applied: false };
     if (u.locSet) job.restoreLoc = u.prevLoc;
@@ -959,6 +996,7 @@
                  (u.locSet ? ' · raft removed' : ''));
       addRecent(recentEntry(job.id, p, 'UNDO', d, before, after, true));
     }
+    renderRemoved();
     send(job);
     focusScan();
   }
