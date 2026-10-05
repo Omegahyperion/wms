@@ -78,6 +78,10 @@
   .camtools button { background: rgba(0,0,0,.55); color: #fff; border: 1px solid rgba(255,255,255,.4); border-radius: 6px;
                      font-size: 14px; font-weight: 700; padding: 6px 9px; cursor: pointer; }
   .camtools button.on { background: #f5c400; color: #000; }
+  /* UNDO LAST SCAN sits to the right of SCAN, one third of its width */
+  #scanRow { display: flex; gap: 8px; align-items: stretch; }
+  #scanRow .scanbtn { flex: 3 1 0; width: auto; min-width: 0; }
+  #scanRow .undo { flex: 1 1 0; width: auto; min-width: 0; margin-top: 8px; padding: 4px; font-size: 12px; letter-spacing: 0; line-height: 1.2; }
   .scanbtn { display: block; width: 100%; margin-top: 8px; padding: 18px; font-size: 22px; font-weight: 900; letter-spacing: .08em;
              color: #fff; background: #1e9e48; border: 0; border-radius: 10px; cursor: pointer; box-shadow: 0 3px 0 #11692f; }
   .scanbtn:active { transform: translateY(2px); box-shadow: none; }
@@ -220,7 +224,7 @@
         <button id="switchBtn" type="button" hidden onclick="switchCamera()">🔄</button>
       </div>
     </div>
-    <button id="scanBtn" class="scanbtn" type="button" onclick="scanPress()">SCAN</button>
+    <div id="scanRow"><button id="scanBtn" class="scanbtn" type="button" onclick="scanPress()">SCAN</button></div>
   </div>
 
   <div id="msg" class="info">Select a raft, then scan.</div>
@@ -574,6 +578,11 @@
   function placeCamera() {
     const slot = document.querySelector('#' + MODE_PANEL[mode] + ' .camslot');
     if (slot && $('camBlock').parentNode !== slot) slot.appendChild($('camBlock'));
+    // the active mode's UNDO button goes next to SCAN, the others go back to their own panel
+    [['stockPanel', 'undoStock'], ['pickPanel', 'undoPick'], ['invPanel', 'undoInv']].forEach(([panel, id]) => {
+      const target = panel === MODE_PANEL[mode] ? $('scanRow') : $(panel);
+      if ($(id).parentNode !== target) target.appendChild($(id));
+    });
   }
 
   function focusScan() {
