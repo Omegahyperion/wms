@@ -57,6 +57,7 @@
   .hint { font-size: 12px; color: #777; margin-top: 4px; }
 
   #msg { margin: 12px 0; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: 600; min-height: 46px; }
+  #msg .q { font-size: 26px; font-weight: 900; }
   #msg.ok { background: #e6f4ea; color: #137333; }
   #msg.err { background: #fce8e6; color: #c5221f; }
   #msg.info { background: #e8f0fe; color: #1a56c4; }
@@ -583,14 +584,16 @@
     else $('ean').focus();
   }
 
-  // "NUMBER OF PIECES - SHELF - Brand - NAME"; empty parts are left out.
-  function scanMsg(pieces, p, shelf) {
-    return [pieces, shelf || p.location, p.brand, p.name || p.ean].filter(x => String(x == null ? '' : x).trim() !== '').join(' - ');
+  // HTML line "QUANTITY (bold, larger) - [SHELF] - Brand - NAME - EAN"; empty parts are left out.
+  function scanMsg(qty, p, shelf) {
+    const parts = ['<span class="q">' + esc(qty) + '</span>'];
+    [shelf, p.brand, p.name, p.ean].forEach(x => { if (String(x == null ? '' : x).trim() !== '') parts.push(esc(x)); });
+    return parts.join(' - ');
   }
 
-  function show(type, text) {
+  function show(type, text, isHtml) {
     $('msg').className = type;
-    $('msg').textContent = text;
+    if (isHtml) $('msg').innerHTML = text; else $('msg').textContent = text;
     if (type === 'err') alarm();
     if (type === 'ok') okSound();
   }
@@ -931,7 +934,7 @@
     showProduct(p);
     if (mode === 'remove') {
       // "NUMBER OF PIECES - SHELF - Brand - NAME"
-      show('ok', scanMsg(-d, p, sel));
+      show('ok', scanMsg(-d, p, sel), true);
       removed.unshift({ id: job.id, ean: p.ean, qty: -d });
       renderRemoved();
     } else {
@@ -1367,7 +1370,7 @@
       } else if (p.qty < line.need) {
         show('err', 'Raft ' + (p.location || '-') + ' · ' + label(p) + ' · only ' + p.qty + ' in stock, order needs ' + line.need);
       } else {
-        show('ok', scanMsg(line.need, p));
+        show('ok', scanMsg(line.need, p), true);
       }
     } else {
       const line = pick.lines[key];
@@ -1383,8 +1386,8 @@
         line.t = pick.n = (pick.n || 0) + 1;
         pushPickUndo({ key: key, kind: 'pick' });
         const t = pickTotals();
-        show('ok', '✓ ' + (p ? scanMsg(line.picked + '/' + line.need, p) : name) +
-                   (t.picked === t.need ? ' · ORDER COMPLETE – press FINISH ORDER' : ''));
+        show('ok', '✓ ' + (p ? scanMsg(line.picked + '/' + line.need, p) : esc(name)) +
+                   (t.picked === t.need ? ' · ORDER COMPLETE – press FINISH ORDER' : ''), true);
         flashPick(true);
       }
     }
@@ -1634,7 +1637,7 @@
     } else if (p.location.trim() && !sameShelf(p.location, inv.shelf)) {
       show('err', label(p) + ' is registered on raft ' + p.location + ', not ' + inv.shelf + ' (counted: ' + c.count + '). It will not be corrected here.');
     } else {
-      show('ok', '✓ ' + scanMsg(c.count, p, inv.shelf));
+      show('ok', '✓ ' + scanMsg(c.count, p), true);
     }
   }
 
