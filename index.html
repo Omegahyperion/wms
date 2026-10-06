@@ -33,9 +33,19 @@
   .modes button[data-mode="add"] { background: #1e9e48; }
   .modes button[data-mode="remove"] { background: #d93025; }
   .modes button[data-mode="manual"] { background: #6b7280; }
-  .modes button[data-mode="pick"] { background: #1a56c4; }
+  .modes button[data-mode="check"] { background: #1a56c4; }
   .modes button[data-mode="inv"] { background: #7c3aed; }
 
+  /* the whole app takes the colour of the active mode */
+  body { transition: background-color .2s; }
+  body[data-mode="add"] { background: #6fd18b; }
+  body[data-mode="remove"] { background: #f08a84; }
+  body[data-mode="manual"] { background: #aab0b9; }
+  body[data-mode="check"] { background: #7fabf2; }
+  body[data-mode="inv"] { background: #b99af6; }
+  body[data-mode] label, body[data-mode] .who, body[data-mode] h2, body[data-mode] .hint, body[data-mode] .osum { color: #111; }
+  .manualean { display: block; width: 100%; margin-top: 8px; }
+  .manualean.typing { background: #111; color: #fff; }
   label { display: block; font-size: 13px; color: #555; margin: 10px 0 4px; }
   input, select { width: 100%; font-size: 20px; padding: 12px; border: 2px solid #ccc; border-radius: 8px; background: #fff; }
   select { font-weight: 700; }
@@ -57,7 +67,8 @@
   .hint { font-size: 12px; color: #777; margin-top: 4px; }
 
   #msg { margin: 12px 0; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: 600; min-height: 46px; }
-  #msg .q { font-size: 26px; font-weight: 900; }
+  #msg .q { font-size: 28px; font-weight: 900; color: #000; }
+  #msg .sub { font-size: 13px; font-weight: 600; margin-top: 4px; color: #333; }
   #msg.ok { background: #e6f4ea; color: #137333; }
   #msg.err { background: #fce8e6; color: #c5221f; }
   #msg.info { background: #e8f0fe; color: #1a56c4; }
@@ -117,7 +128,7 @@
   #recent .qa b { font-size: 18px; color: #222; }
   .empty { color: #888; font-size: 14px; }
 
-  /* Picking and inventory tables */
+  /* Raft check and inventory tables */
   .otable-wrap { overflow-x: auto; }
   .otable { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
   .otable th { background: #1a56c4; color: #fff; font-size: 13px; text-align: left; padding: 8px; }
@@ -135,13 +146,6 @@
   .otable td.stoc { text-align: right; white-space: nowrap; font-size: 13px; }
   .otable td.stoc b { font-size: 20px; font-weight: 900; color: #222; }
   .osum { margin: 8px 0; font-weight: 600; color: #444; }
-  #pickTarget { border: 4px solid #1a56c4; transition: background .2s; }
-  #pickTarget .raft { font-size: 44px; font-weight: 900; color: #1a56c4; line-height: 1; }
-  #pickTarget .what { font-size: 18px; font-weight: 700; margin-top: 6px; }
-  #pickTarget .need { font-size: 22px; font-weight: 800; margin-top: 6px; }
-  #pickTarget.good { background: #c8f0d4; }
-  #pickTarget.bad { background: #ffc9c4; }
-  #pickTarget.complete { border-color: #1e9e48; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -157,7 +161,7 @@
     <button data-mode="add" class="active" onclick="setMode('add')">+1</button>
     <button data-mode="remove" onclick="setMode('remove')">−1</button>
     <button data-mode="manual" onclick="setMode('manual')">MANUAL</button>
-    <button data-mode="pick" class="wide" onclick="setMode('pick')">PICKING MODE</button>
+    <button data-mode="check" class="wide" onclick="setMode('check')">VERIFICA RAFT</button>
     <button data-mode="inv" class="wide" onclick="setMode('inv')">MOD INVENTAR</button>
   </div>
 
@@ -176,27 +180,21 @@
 
     <label for="ean">Scan EAN</label>
     <div class="row">
-      <input id="ean" inputmode="numeric" autocomplete="off" autofocus>
+      <input id="ean" inputmode="none" autocomplete="off" autofocus>
       <button class="btn sec cam" onclick="toggleCamera()">📷</button>
     </div>
     <div class="camslot"></div>
     <button class="undo" id="undoStock" onclick="undoStock()">UNDO LAST SCAN</button>
   </div>
 
-  <!-- PICKING MODE -->
-  <div id="pickPanel" hidden>
-    <div id="pickTarget" class="card" hidden>
-      <div class="raft" id="ptRaft"></div>
-      <div class="what" id="ptWhat"></div>
-      <div class="need" id="ptNeed"></div>
-    </div>
-    <label for="pickEan" id="pickLabel">Scan the products from the packing list</label>
+  <!-- VERIFICA RAFT: look up one EAN, no change to stock -->
+  <div id="checkPanel" hidden>
+    <label for="checkEan">Scan EAN</label>
     <div class="row">
-      <input id="pickEan" inputmode="numeric" autocomplete="off">
+      <input id="checkEan" inputmode="none" autocomplete="off">
       <button class="btn sec cam" onclick="toggleCamera()">📷</button>
     </div>
     <div class="camslot"></div>
-    <button class="undo" id="undoPick" onclick="undoPick()">UNDO LAST SCAN</button>
   </div>
 
   <!-- MOD INVENTAR -->
@@ -207,7 +205,7 @@
     <input id="invQty" type="number" min="1" step="1" inputmode="numeric">
     <label for="invEan">Scan every product on this raft</label>
     <div class="row">
-      <input id="invEan" inputmode="numeric" autocomplete="off">
+      <input id="invEan" inputmode="none" autocomplete="off">
       <button class="btn sec cam" onclick="toggleCamera()">📷</button>
     </div>
     <div class="camslot"></div>
@@ -216,6 +214,7 @@
 
   <!-- camera + SCAN trigger; moved under the scan field of the active mode -->
   <div id="camBlock">
+    <button id="manualEanBtn" class="btn sec manualean" type="button" onclick="manualEan()">Scrie EAN manual</button>
     <div id="reader" hidden>
       <video id="camVideo" playsinline muted autoplay></video>
       <div class="camtools">
@@ -257,25 +256,6 @@
       <div class="brand" id="pBrand"></div>
       <div class="meta">EAN <span id="pEan"></span> · Raft <b id="pLoc"></b></div>
       <div class="qty" id="pQty"></div>
-    </div>
-  </div>
-
-  <div id="pickArea" hidden>
-    <div class="osum" id="pickSum"></div>
-    <div class="otable-wrap"><table class="otable">
-      <thead><tr><th>Raft</th><th>Produs</th><th style="text-align:right" id="pickColQty">Buc</th><th style="text-align:right">Stoc</th></tr></thead>
-      <tbody id="pickRows"></tbody>
-    </table></div>
-    <div class="row" style="margin-top:10px" id="pickListBtns">
-      <button class="btn yes big" onclick="startPicking()">START PICKING</button>
-      <button class="btn sec" id="clearPickBtn" onclick="clearPick()">Clear order</button>
-    </div>
-    <div style="margin-top:10px" id="pickPickBtns" hidden>
-      <button class="btn yes big" style="width:100%" onclick="finishPick()">FINISH ORDER – remove from stock</button>
-      <div class="row" style="margin-top:8px">
-        <button class="btn sec" onclick="backToList()">Back to the list</button>
-        <button class="btn sec" id="cancelPickBtn" onclick="clearPick()">Cancel order</button>
-      </div>
     </div>
   </div>
 
@@ -542,16 +522,18 @@
 
   // ---------- screen helpers ----------
 
-  const MODE_PANEL = { add: 'stockPanel', remove: 'stockPanel', manual: 'stockPanel', pick: 'pickPanel', inv: 'invPanel' };
+  const MODE_PANEL = { add: 'stockPanel', remove: 'stockPanel', manual: 'stockPanel', check: 'checkPanel', inv: 'invPanel' };
+  // the field that receives the EAN in each mode
+  const MODE_EAN = { add: 'ean', remove: 'ean', manual: 'ean', check: 'checkEan', inv: 'invEan' };
 
   function setMode(m) {
     mode = m;
+    document.body.dataset.mode = m; // the page colour follows the mode
     document.querySelectorAll('.modes button').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
     const stockMode = MODE_PANEL[m] === 'stockPanel';
     $('stockPanel').hidden = !stockMode;
     $('stockArea').hidden = !stockMode;
-    $('pickPanel').hidden = m !== 'pick';
-    $('pickArea').hidden = m !== 'pick';
+    $('checkPanel').hidden = m !== 'check';
     $('invPanel').hidden = m !== 'inv';
     $('invArea').hidden = m !== 'inv';
     $('manualBox').hidden = m !== 'manual';
@@ -559,17 +541,17 @@
     $('rmWrap').hidden = m !== 'remove';
     renderRemoved();
     $('ean').value = '';
+    $('checkEan').value = '';
     $('manualQty').value = '';
     placeCamera();
+    keyboardOff();
     const labels = {
       add: '+1 per scan', remove: '−1 per scan (raft is taken from the product, just scan)',
       manual: 'type the quantity, then scan EAN',
-      pick: pick.phase === 'pick' ? 'PICKING: go raft by raft and scan each product you take'
-                                  : 'PICKING MODE: scan the packing list, then press START PICKING',
+      check: 'VERIFICA RAFT: scan an EAN to see its quantity and raft (nothing is changed)',
       inv: 'MOD INVENTAR: choose the raft, scan everything on it, then press FINISH COUNT'
     };
     show('info', 'Mode: ' + labels[m]);
-    renderPick();
     renderInv();
     focusScan();
   }
@@ -579,20 +561,53 @@
     const slot = document.querySelector('#' + MODE_PANEL[mode] + ' .camslot');
     if (slot && $('camBlock').parentNode !== slot) slot.appendChild($('camBlock'));
     // the active mode's UNDO button goes next to SCAN, the others go back to their own panel
-    [['stockPanel', 'undoStock'], ['pickPanel', 'undoPick'], ['invPanel', 'undoInv']].forEach(([panel, id]) => {
+    [['stockPanel', 'undoStock'], ['invPanel', 'undoInv']].forEach(([panel, id]) => {
       const target = panel === MODE_PANEL[mode] ? $('scanRow') : $(panel);
       if ($(id).parentNode !== target) target.appendChild($(id));
     });
   }
 
   function focusScan() {
-    if (mode === 'pick') { $('pickEan').focus(); return; }
+    if (mode === 'check') { $('checkEan').focus(); return; }
     if (mode === 'inv') { (inv.shelf ? $('invEan') : $('invShelf')).focus(); return; }
     if (!$('shelf').value && mode !== 'remove') $('shelf').focus();
     else if (mode === 'manual' && manualQty() === null) $('manualQty').focus();
     else $('ean').focus();
   }
 
+  // ---------- keyboard ----------
+  // The EAN fields never open the on-screen keyboard (inputmode "none"): the camera fills them. The button
+  // "Scrie EAN manual" opens the number keyboard for one EAN; OK (or Enter) applies it and hides the keyboard again.
+  let typingEan = false;
+
+  function keyboardOff() {
+    const was = typingEan;
+    typingEan = false;
+    const btn = $('manualEanBtn');
+    btn.textContent = 'Scrie EAN manual';
+    btn.classList.remove('typing');
+    Object.values(MODE_EAN).forEach(id => { $(id).inputMode = 'none'; });
+    const el = document.activeElement;
+    if (was && el && el.tagName === 'INPUT' && Object.values(MODE_EAN).includes(el.id)) { el.blur(); el.focus(); }
+  }
+
+  function manualEan() {
+    const input = $(MODE_EAN[mode]);
+    if (typingEan) { // second tap = OK
+      const fn = { ean: eanEntered, checkEan: checkEntered, invEan: invEntered }[input.id];
+      if (input.value.trim()) { fn(); keyboardOff(); } else keyboardOff();
+      return;
+    }
+    if (mode === 'inv' && !inv.shelf) { show('err', 'Select the raft to count first.'); $('invShelf').focus(); return; }
+    if (mode === 'add' && !$('shelf').value) { show('err', 'Select a raft first.'); markShelf(); $('shelf').focus(); return; }
+    typingEan = true;
+    $('manualEanBtn').textContent = '✔ OK – caută EAN';
+    $('manualEanBtn').classList.add('typing');
+    input.value = '';
+    input.inputMode = 'numeric';
+    input.blur();
+    input.focus();
+  }
   // HTML line "QUANTITY (bold, larger) - [SHELF] - Brand - NAME - EAN"; empty parts are left out.
   function scanMsg(qty, p, shelf) {
     const parts = ['<span class="q">' + esc(qty) + '</span>'];
@@ -753,7 +768,7 @@
   }
 
   function updateUndoButtons() {
-    [['undoStock', undoStack.length], ['undoPick', pick.undo.length], ['undoInv', inv.undo.length]].forEach(([id, n]) => {
+    [['undoStock', undoStack.length], ['undoInv', inv.undo.length]].forEach(([id, n]) => {
       $(id).textContent = 'UNDO LAST SCAN' + (n ? ' (' + n + ')' : '');
       $(id).disabled = !n;
     });
@@ -941,16 +956,16 @@
     p.qty = after;
     pushUndo({ id: job.id, ean: p.ean, d: d, locSet: locSet, prevLoc: '' });
     showProduct(p);
+    const q = x => '<span class="q">' + esc(x) + '</span>';
+    const msg = d < 0
+      ? '(−' + (-d) + ' din ' + q(before) + ' pe RAFT: ' + q(sel || '-') + ') = ' + q(after) + ' rămase'
+      : '(+' + d + ' la ' + q(before) + ' pe RAFT: ' + q(sel || '-') + ') = ' + q(after) + ' noua cantitate';
+    show('ok', msg + '<div class="sub">' + esc((prefix || '') + [p.brand, p.name, p.ean].filter(x => String(x || '').trim()).join(' - ') +
+               (locSet ? ' · raft ' + sel + ' assigned' : '')) + '</div>', true);
     if (mode === 'remove') {
-      // "NUMBER OF PIECES - SHELF - Brand - NAME"
-      show('ok', scanMsg(-d, p, sel), true);
       removed.unshift({ id: job.id, ean: p.ean, qty: -d });
       renderRemoved();
-    } else {
-      show('ok', prefix + (d > 0 ? '+' : '') + d + ' → ' + label(p) + ' · now ' + after +
-                 (locSet ? ' · raft ' + sel + ' assigned' : ''));
-    }
-    addRecent(recentEntry(job.id, p, d > 0 ? 'IN' : 'OUT', d, before, after, true));
+    }    addRecent(recentEntry(job.id, p, d > 0 ? 'IN' : 'OUT', d, before, after, true));
     send(job);
   }
 
@@ -1179,7 +1194,6 @@
         checkVersion(res.version);
         if (!pending.length && !inFlight.length) recent = res.recent;
         renderRecent();
-        renderPick();
         renderInv();
         setSync();
       })
@@ -1227,7 +1241,6 @@
             recent.forEach(r => { if (norm(r.ean) === k) { r.name = p.name; r.brand = p.brand; } });
           });
           renderRecent();
-          renderPick();
           renderInv();
         })
         .withFailureHandler(() => {})
@@ -1294,7 +1307,6 @@
     show('ok', 'Added at the bottom of the list: ' + label(p) + ' · qty ' + qty + ' · raft ' + p.location);
     if (mode === 'manual') $('manualQty').value = ''; // next product needs its own quantity
     closeNew();
-    renderPick();
     renderInv();
     send(job);
   }
@@ -1327,255 +1339,28 @@
       show('err', 'New product NOT saved: ' + (r.error || 'unknown error') + '. Please add it again.');
       loadStock();
     }
-    renderPick();
     renderInv();
   }
 
-  // ---------- PICKING MODE ----------
-  // 1. Scan the packing list (each scan = one piece needed).
-  // 2. START PICKING: the app shows the next raft and product; scan each piece you take
-  //    (right product: ✓ green, wrong or too many: ✗ red alarm).
-  // 3. FINISH ORDER: the picked pieces are removed from stock (one PICK change per product) and
-  //    the order is saved in the Comenzi tab.
+  // ---------- VERIFICA RAFT ----------
+  // Looks up one EAN: quantity and shelf. Nothing is changed in the stock.
 
-  function emptyPick() { return { phase: 'list', lines: {}, undo: [], orderId: '' }; }
-  let pick = emptyPick();
-
-  function storePick() { keep('wmsPick', pick); }
-  function restorePick() {
-    pick = load('wmsPick', null);
-    if (!pick) {
-      pick = emptyPick();
-      // the list of the previous version (COMANDA NOUA) is kept
-      const old = load('wmsOrder', null);
-      if (old && old.order) {
-        Object.keys(old.order).forEach(k => { pick.lines[k] = { ean: old.order[k].ean, need: old.order[k].count, picked: 0 }; });
-      }
-    }
-    pick.undo = pick.undo || [];
-  }
-
-  function pickEntered() {
+  function checkEntered() {
     clearTimeout(autoTimer);
-    const ean = $('pickEan').value.trim();
-    $('pickEan').value = '';
+    const ean = $('checkEan').value.trim();
+    $('checkEan').value = '';
     if (!ean || blocked()) return;
-    $('pickEan').focus();
-    pickScan(ean);
+    $('checkEan').focus();
+    checkScan(ean);
   }
 
-  function pickScan(ean) {
-    const key = norm(ean);
-    const p = productFor(key);
-    if (pick.phase === 'list') {
-      const line = pick.lines[key] || { ean: p ? p.ean : ean, need: 0, picked: 0 };
-      line.need++;
-      line.t = pick.n = (pick.n || 0) + 1;
-      pick.lines[key] = line;
-      pushPickUndo({ key: key, kind: 'list' });
-      if (!p) {
-        show('err', 'EAN ' + ean + ' is not in the stock list (kept in the order).');
-        askAddProduct(ean, 0, '');
-      } else if (p.qty < line.need) {
-        show('err', 'Raft ' + (p.location || '-') + ' · ' + label(p) + ' · only ' + p.qty + ' in stock, order needs ' + line.need);
-      } else {
-        show('ok', scanMsg(line.need, p), true);
-      }
-    } else {
-      const line = pick.lines[key];
-      const name = p ? label(p) : 'EAN ' + ean;
-      if (!line) {
-        show('err', '✗ WRONG PRODUCT – not in this order: ' + name);
-        flashPick(false);
-      } else if (line.picked >= line.need) {
-        show('err', '✗ TOO MANY – you already took all ' + line.need + ' of ' + name);
-        flashPick(false);
-      } else {
-        line.picked++;
-        line.t = pick.n = (pick.n || 0) + 1;
-        pushPickUndo({ key: key, kind: 'pick' });
-        const t = pickTotals();
-        show('ok', '✓ ' + (p ? scanMsg(line.picked + '/' + line.need, p) : esc(name)) +
-                   (t.picked === t.need ? ' · ORDER COMPLETE – press FINISH ORDER' : ''), true);
-        flashPick(true);
-      }
-    }
-    storePick();
-    renderPick();
+  function checkScan(ean) {
+    const p = productFor(ean);
+    if (!p) { show('err', 'EAN ' + ean + ' is not in the stock list.'); return; }
+    const shelf = p.location.trim();
+    show('ok', '<span class="q">' + esc(p.qty) + '</span> Buc - RAFT: <span class="q">' + esc(shelf || '-') + '</span>' +
+               '<div class="sub">' + esc([p.brand, p.name, p.ean].filter(x => String(x || '').trim()).join(' - ')) + '</div>', true);
   }
-
-  function pushPickUndo(entry) {
-    pick.undo.push(entry);
-    if (pick.undo.length > UNDO_MAX) pick.undo.shift();
-    updateUndoButtons();
-  }
-
-  function undoPick() {
-    if (blocked()) return;
-    const u = pick.undo.pop();
-    if (!u || !pick.lines[u.key]) { updateUndoButtons(); show('info', 'Nothing to undo.'); return; }
-    const line = pick.lines[u.key];
-    const name = stock[u.key] ? label(stock[u.key]) : 'EAN ' + line.ean;
-    if (u.kind === 'pick') {
-      line.picked = Math.max(0, line.picked - 1);
-      show('ok', 'UNDO: one ' + name + ' put back (' + line.picked + '/' + line.need + ').');
-    } else {
-      line.need--;
-      if (line.need <= 0) delete pick.lines[u.key];
-      else line.picked = Math.min(line.picked, line.need);
-      show('ok', 'UNDO: one ' + name + ' removed from the order.');
-    }
-    storePick();
-    renderPick();
-    updateUndoButtons();
-    $('pickEan').focus();
-  }
-
-  function flashPick(good) {
-    const t = $('pickTarget');
-    t.classList.remove('good', 'bad');
-    void t.offsetWidth; // restart the flash when scanning fast
-    t.classList.add(good ? 'good' : 'bad');
-    setTimeout(() => t.classList.remove('good', 'bad'), 700);
-  }
-
-  function pickLines() {
-    return Object.keys(pick.lines).map(key => {
-      const p = productFor(key), l = pick.lines[key];
-      return { key: key, ean: p ? p.ean : l.ean, need: l.need, picked: l.picked, t: l.t || 0,
-               name: p ? p.name : '', brand: p ? p.brand : '', location: p ? p.location : '', stock: p ? p.qty : null };
-    }).sort((a, b) => byShelf(a.location, b.location));
-  }
-
-  function pickTotals() {
-    return Object.values(pick.lines).reduce((t, l) => ({ need: t.need + l.need, picked: t.picked + l.picked }), { need: 0, picked: 0 });
-  }
-
-  function renderPick() {
-    const lines = pickLines();
-    const t = pickTotals();
-    const picking = pick.phase === 'pick';
-    $('pickListBtns').hidden = picking;
-    $('pickPickBtns').hidden = !picking;
-    $('pickLabel').textContent = picking ? 'Scan each product as you take it' : 'Scan the products from the packing list';
-    $('pickColQty').textContent = picking ? 'Luat' : 'Buc';
-    $('pickSum').textContent = !lines.length ? 'No products scanned yet.'
-      : picking ? 'Order ' + pick.orderId + ' · picked ' + t.picked + ' / ' + t.need + ' pieces · latest scan on top'
-                : lines.length + ' products · ' + t.need + ' pieces · latest scan on top';
-
-    const next = lines.find(l => l.picked < l.need);
-    $('pickTarget').hidden = !picking;
-    $('pickTarget').classList.toggle('complete', picking && !next);
-    if (picking) {
-      if (next) {
-        $('ptRaft').textContent = 'Raft ' + (next.location || '?');
-        $('ptWhat').textContent = (next.name || '(not in stock list)') + (next.brand ? ' · ' + next.brand : '') + ' · EAN ' + next.ean;
-        $('ptNeed').textContent = 'Take ' + (next.need - next.picked) + ' more  (' + next.picked + '/' + next.need + ')';
-      } else {
-        $('ptRaft').textContent = '✓ All picked';
-        $('ptWhat').textContent = t.picked + ' pieces';
-        $('ptNeed').textContent = 'Press FINISH ORDER to remove them from stock';
-      }
-    }
-
-    // newest scan on top (the target card above still follows the raft order)
-    $('pickRows').innerHTML = lines.slice().sort((a, b) => b.t - a.t).map(l => {
-      const short = l.stock === null || l.stock < l.need;
-      const cls = picking ? (l.picked >= l.need ? 'done' : l === next ? 'cur' : short ? 'warn' : '') : (short ? 'warn' : '');
-      return '<tr class="' + cls + '">' +
-        '<td class="raft">' + esc(l.location || '?') + '</td>' +
-        '<td>' + esc(l.name || '(not in stock list)') +
-        (l.brand ? '<div class="br">' + esc(l.brand) + '</div>' : '') +
-        '<div class="ean">EAN ' + esc(l.ean) + '</div></td>' +
-        '<td class="num">' + (picking ? l.picked + '/' + l.need : l.need) + '</td>' +
-        '<td class="stoc">STOC <b>' + (l.stock === null ? '-' : l.stock) + '</b></td></tr>';
-    }).join('');
-    updateUndoButtons();
-  }
-
-  function startPicking() {
-    if (!Object.keys(pick.lines).length) { show('err', 'Scan the packing list first.'); return; }
-    pick.phase = 'pick';
-    if (!pick.orderId) {
-      const d = new Date(), two = n => String(n).padStart(2, '0'); // phone's local time
-      pick.orderId = 'CMD-' + d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate()) + '-' +
-                     two(d.getHours()) + two(d.getMinutes()) + two(d.getSeconds());
-    }
-    storePick();
-    renderPick();
-    const next = pickLines().find(l => l.picked < l.need);
-    show('info', 'Picking started. Go to raft ' + ((next && next.location) || '?') + ' and scan each piece you take.');
-    $('pickEan').focus();
-  }
-
-  function backToList() {
-    pick.phase = 'list';
-    storePick();
-    renderPick();
-    show('info', 'Back to the list: scan more products, or UNDO to remove one. Picked pieces are kept.');
-    $('pickEan').focus();
-  }
-
-  function clearPick() {
-    const btn = pick.phase === 'pick' ? 'cancelPickBtn' : 'clearPickBtn';
-    const text = pick.phase === 'pick' ? 'Cancel order' : 'Clear order';
-    twoTap(btn, text, () => {
-      pick = emptyPick();
-      storePick();
-      renderPick();
-      show('info', 'Order cleared. Scan the next packing list.');
-      $('pickEan').focus();
-    });
-  }
-
-  function finishPick() {
-    if (blocked() || !serverReady()) return;
-    const t = pickTotals();
-    if (!t.picked) { show('err', 'Nothing picked yet.'); return; }
-    if (t.picked < t.need) {
-      ask('warn', 'Not everything is picked: <b>' + t.picked + ' of ' + t.need + '</b> pieces.<br><br>' +
-                  'Remove only the picked pieces from stock and close the order?',
-        [{ label: 'YES, finish with what I picked', cls: 'yes', fn: doFinishPick },
-         { label: 'NO, continue picking', cls: 'sec', fn: () => $('pickEan').focus() }]);
-      return;
-    }
-    doFinishPick();
-  }
-
-  function doFinishPick() {
-    const lines = pickLines();
-    const orderId = pick.orderId;
-    let pieces = 0;
-    lines.forEach(l => {
-      const p = productFor(l.key);
-      if (!l.picked || !p) return;
-      const job = { id: ++seq, pick: true, ean: p.ean, d: -l.picked, orderId: orderId, applied: true };
-      const before = p.qty;
-      p.qty = before - l.picked;
-      addRecent(recentEntry(job.id, p, 'PICK', -l.picked, before, p.qty, true));
-      send(job);
-      pieces += l.picked;
-    });
-    saveOrderRemote(lines.map(l => ({ ean: l.ean, count: l.picked,
-      note: l.picked >= l.need ? 'Picked, removed from stock' : 'Picked ' + l.picked + ' of ' + l.need })), orderId, 0);
-    pick = emptyPick();
-    storePick();
-    renderPick();
-    show('ok', 'Order ' + orderId + ' finished: ' + pieces + ' pieces removed from stock.');
-    $('pickEan').focus();
-  }
-
-  // The order is saved once (the server recognises the order id), so it is safe to try again.
-  function saveOrderRemote(lines, orderId, attempt) {
-    google.script.run
-      .withSuccessHandler(() => {})
-      .withFailureHandler(e => {
-        if (e.transport && attempt < 6) { setTimeout(() => saveOrderRemote(lines, orderId, attempt + 1), 5000 * (attempt + 1)); return; }
-        show('err', 'Stock was updated, but order ' + orderId + ' was NOT written to the Comenzi tab: ' + e.message);
-      })
-      .saveOrder(lines, orderId);
-  }
-
   // ---------- MOD INVENTAR ----------
   // Choose a raft, scan everything on it (or type a quantity before a scan), press FINISH COUNT,
   // check the differences against the sheet, then APPLY CORRECTIONS sets the counted quantities.
@@ -1770,16 +1555,16 @@
 
   function autoApply(input, fn) {
     input.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); fn(); }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); fn(); keyboardOff(); }
     });
     input.addEventListener('input', () => {
       clearTimeout(autoTimer);
       const v = input.value.trim();
-      if (/^\d+$/.test(v) && v.length >= MIN_EAN_LEN) autoTimer = setTimeout(fn, AUTO_DELAY_MS);
+      if (!typingEan && /^\d+$/.test(v) && v.length >= MIN_EAN_LEN) autoTimer = setTimeout(fn, AUTO_DELAY_MS);
     });
   }
   autoApply($('ean'), eanEntered);
-  autoApply($('pickEan'), pickEntered);
+  autoApply($('checkEan'), checkEntered);
   autoApply($('invEan'), invEntered);
   $('manualQty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); manualApply(); } });
   $('invQty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('invEan').focus(); } });
@@ -2037,7 +1822,7 @@
     $('reader').classList.add('hit');
     setTimeout(() => $('reader').classList.remove('hit'), 300);
     if (blocked()) return;
-    if (mode === 'pick') { pickScan(code); return; }
+    if (mode === 'check') { checkScan(code); return; }
     if (mode === 'inv') { invScan(code); return; }
     $('ean').value = code;
     eanEntered();
@@ -2048,10 +1833,9 @@
 
   // ---------- start ----------
   restoreQueue();
-  restorePick();
   restoreInv();
+  document.body.dataset.mode = mode;
   placeCamera();
-  renderPick();
   renderInv();
   updateUndoButtons();
   markShelf();
