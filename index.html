@@ -1550,12 +1550,29 @@
     checkScan(ean);
   }
 
-  function checkScan(ean) {
-    const p = productFor(ean);
-    if (!p) { show('err', 'EAN ' + ean + ' is not in the stock list.'); return; }
-    const shelf = p.location.trim();
-    show('ok', '<span class="q">' + esc(p.qty) + '</span> Buc - RAFT: <span class="q">' + esc(shelf || '-') + '</span>' +
+  // Shows what the page knows at once, then asks the sheet for the live quantity and shelf (the page's copy can be
+  // up to 2 minutes old, and products added meanwhile by someone else are not in it yet).
+  let checkSeq = 0;
+  function showCheck(p) {
+    show('ok', '<span class="q">' + esc(p.qty) + '</span> Buc - RAFT: <span class="q">' + esc(p.location.trim() || '-') + '</span>' +
                '<div class="sub">' + esc([p.brand, p.name, p.ean].filter(x => String(x || '').trim()).join(' - ')) + '</div>', true);
+  }
+
+  function checkScan(ean) {
+    const key = norm(ean), p = productFor(ean), seq = ++checkSeq;
+    if (p) showCheck(p); else show('info', 'Searching EAN ' + ean + '…');
+    google.script.run
+      .withSuccessHandler(found => {
+        if (seq !== checkSeq || mode !== 'check') return;
+        const f = found && found[key];
+        if (!f) { if (!p) show('err', 'EAN ' + ean + ' is not in the stock list.'); return; }
+        const live = { ean: f.ean, name: f.name, brand: f.brand, location: f.location, qty: f.qty + unconfirmed(key), partial: false };
+        stock[key] = Object.assign(stock[key] || {}, live);
+        delete restIndex[key];
+        showCheck(stock[key]);
+      })
+      .withFailureHandler(e => { if (seq === checkSeq && !p) show('err', 'Could not look up EAN ' + ean + ': ' + e.message); })
+      .getProducts([key]);
   }
   // ---------- MOD INVENTAR ----------
   // Choose a raft, scan everything on it (or type a quantity before a scan), press FINISH COUNT,
@@ -2031,7 +2048,7 @@
   restoreQueue();
   restoreInv();
   document.body.dataset.mode = mode;
-  bulkPdfBtn.hidden = !load('wmsBulkLast', null);
+  $('bulkPdfBtn').hidden = !load('wmsBulkLast', null);
   placeCamera();
   renderInv();
   updateUndoButtons();
