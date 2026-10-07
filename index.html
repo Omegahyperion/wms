@@ -387,7 +387,8 @@
       const err = new Error(data.error || 'Unknown error');
       err.auth = !!data.auth;
       // Google busy with other scans: nothing was written yet, so it is safe to try again.
-      err.transport = /lock/i.test(data.error || '');
+      // (Google writes this message in the account's language, e.g. Romanian "Blocarea a expirat")
+      err.transport = /lock|blocarea|blocare/i.test(data.error || '');
       throw err;
     }
     if (data.user && data.user !== session.user) { // name corrected in the employee list
