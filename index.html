@@ -1358,7 +1358,8 @@
   // ---------- SCADERE STOC CU FISIER ----------
   // An Excel/CSV file with two columns (EAN | quantity) takes pieces out of stock in one go (PICK changes,
   // one per EAN) and produces a PDF list of what must be physically taken from the shelves.
-  // If any EAN is unknown or asks for more than the available quantity, NOTHING is subtracted.
+  // Lines that cannot be taken from the shelf (EAN not in the list, stock 0, or more asked than available) do not stop the rest:
+  // what is available is subtracted, and the PDF ends with a list of what could not be subtracted.
 
   const LIBS = {
     xlsx: 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
@@ -1410,45 +1411,44 @@
     }
 
     const lines = new Map();   // normalized EAN -> { ean, qty } (the same EAN on several rows is added up)
-    const problems = [];
+    const missing = [];        // lines that could not be subtracted: { ean, p?, name, shelf, qty, note }
     rows.forEach((r, i) => {
       const rawE = r[0] == null ? '' : r[0], rawQ = r[1] == null ? '' : r[1];
       if (String(rawE).trim() === '' && String(rawQ).trim() === '') return;
       const ean = cellEan(rawE), qty = cellQty(rawQ);
       if (i === 0 && ean === null) return; // header row
       if (ean === null || qty === null) {
-        problems.push('Row ' + (i + 1) + ': "' + String(rawE).trim() + '" / "' + String(rawQ).trim() + '" – needs an EAN and a whole quantity of 1 or more');
+        missing.push({ ean: String(rawE).trim() || '-', name: '', shelf: '', qty: null, note: 'Row ' + (i + 1) + ' not valid (needs EAN + whole quantity): "' + String(rawQ).trim() + '"' });
         return;
       }
       const key = norm(ean), l = lines.get(key);
       if (l) l.qty += qty; else lines.set(key, { ean: ean, qty: qty });
     });
-    if (!lines.size && !problems.length) { show('err', 'The file has no rows (column A = EAN, column B = quantity).'); return; }
+    if (!lines.size && !missing.length) { show('err', 'The file has no rows (column A = EAN, column B = quantity).'); return; }
 
     const ok = [];
     lines.forEach((l, key) => {
       const p = productFor(key);
-      if (!p) problems.push('EAN ' + l.ean + ': not in the stock list (asked ' + l.qty + ')');
-      else if (l.qty > p.qty) problems.push('EAN ' + l.ean + ': asked ' + l.qty + ', available ' + p.qty + ' – ' + (p.name || p.brand || ''));
-      else ok.push({ p: p, qty: l.qty });
+      if (!p) missing.push({ ean: l.ean, name: '', shelf: '', qty: l.qty, note: 'Not in the stock list' });
+      else if (p.qty <= 0) missing.push({ ean: p.ean, p: p, qty: l.qty, note: 'No stock at shelf' });
+      else if (l.qty > p.qty) {
+        ok.push({ p: p, qty: p.qty });
+        missing.push({ ean: p.ean, p: p, qty: l.qty - p.qty, note: 'Asked ' + l.qty + ', only ' + p.qty + ' available' });
+      } else ok.push({ p: p, qty: l.qty });
     });
 
-    if (problems.length) {
-      show('err', 'NOTHING was subtracted: ' + problems.length + ' problem' + (problems.length === 1 ? '' : 's') + ' in the file. Fix them and upload again.');
-      ask('warn', '<b>Nothing was subtracted.</b><br>These lines ask for more than the available quantity (or are not valid):' +
-        '<div style="max-height:45vh;overflow:auto;margin:10px 0;font-size:14px;text-align:left">' +
-        problems.map(x => '• ' + esc(x)).join('<br>') + '</div>',
-        [{ label: 'OK', cls: 'sec' }]);
-      return;
-    }
-
     const pieces = ok.reduce((s, x) => s + x.qty, 0);
-    ask('ask', 'Subtract <b>' + pieces + ' buc</b> on <b>' + ok.length + ' unique EANs</b> from stock?<br><div class="sub">' + esc(file.name) + '</div>',
-      [{ label: 'YES, subtract', cls: 'yes', fn: () => applyBulk(ok, pieces) },
+    const missPieces = missing.reduce((s, x) => s + (x.qty || 0), 0);
+    const miss = missing.length
+      ? '<br><br><b>' + missing.length + ' line' + (missing.length === 1 ? '' : 's') + (missPieces ? ' (' + missPieces + ' buc)' : '') +
+        '</b> not available at the shelf: not subtracted, listed at the end of the PDF.'
+      : '';
+    const what = ok.length ? 'Subtract <b>' + pieces + ' buc</b> on <b>' + ok.length + ' unique EANs</b> from stock?' : '<b>Nothing</b> in this file is available at the shelf.';
+    ask(ok.length ? 'ask' : 'warn', what + miss + '<div class="sub">' + esc(file.name) + '</div>',
+      [{ label: ok.length ? 'YES, subtract' : 'Create the PDF', cls: 'yes', fn: () => applyBulk(ok, pieces, missing) },
        { label: 'NO', cls: 'sec', fn: () => show('info', 'Cancelled. Nothing was subtracted.') }]);
   }
-
-  async function applyBulk(list, pieces) {
+  async function applyBulk(list, pieces, missing) {
     const d = new Date(), two = n => String(n).padStart(2, '0');
     const stamp = d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate()) + '-' + two(d.getHours()) + two(d.getMinutes()) + two(d.getSeconds());
     const orderId = 'FISIER-' + stamp;
@@ -1459,26 +1459,28 @@
       addRecent(recentEntry(job.id, p, 'PICK', -qty, before, p.qty, true));
       pending.push(job);
     });
-    saveQueue();
-    setSync();
-    flush();
-    show('ok', '<span class="q">' + pieces + '</span> buc were subtracted on <span class="q">' + list.length + '</span> unique EANs', true);
+    if (list.length) { saveQueue(); setSync(); flush(); }
+    const notDone = missing.length ? '<div class="sub">' + missing.length + ' not available at the shelf (listed at the end of the PDF)</div>' : '';
+    show(list.length ? 'ok' : 'err', '<span class="q">' + pieces + '</span> buc were subtracted on <span class="q">' + list.length + '</span> unique EANs' + notDone, true);
 
     // the PDF list: names first (products that were not opened yet only have EAN and shelf)
-    await fillNames(list.map(x => x.p));
-    const last = { stamp: stamp, pieces: pieces, rows: sortBulkRows(list.map(({ p, qty }) =>
-      ({ ean: p.ean, name: p.name || '', shelf: p.location.trim(), qty: qty }))) };
+    await fillNames(list.map(x => x.p).concat(missing.filter(m => m.p).map(m => m.p)));
+    missing.forEach(m => { if (m.p) { m.name = m.p.name || ''; m.shelf = m.p.location.trim(); } });
+    const last = { stamp: stamp, pieces: pieces,
+      rows: sortBulkRows(list.map(({ p, qty }) => ({ ean: p.ean, name: p.name || '', shelf: p.location.trim(), qty: qty }))),
+      missing: sortBulkRows(missing.map(m => ({ ean: m.ean, name: m.name, shelf: m.shelf, qty: m.qty, note: m.note }))) };
     keep('wmsBulkLast', last);
     $('bulkPdfBtn').hidden = false;
     try { await loadLib('jspdf'); await loadLib('table'); } catch (err) {
       show('err', pieces + ' buc were subtracted, but the PDF could not be created: ' + err.message + '. Use "Descarcă din nou PDF-ul" when online.');
       return;
     }
-    ask('ask', '<b>' + pieces + ' buc</b> were subtracted on <b>' + list.length + ' unique EANs</b>.<br><br>Download the list of products to take from the shelves:',
+    ask('ask', '<b>' + pieces + ' buc</b> were subtracted on <b>' + list.length + ' unique EANs</b>.' +
+        (missing.length ? '<br><b>' + missing.length + '</b> line' + (missing.length === 1 ? '' : 's') + ' not available at the shelf.' : '') +
+        '<br><br>Download the PDF:',
       [{ label: 'DESCARCĂ PDF', cls: 'yes', fn: () => makeBulkPdf(last) },
        { label: 'Close', cls: 'sec' }]);
   }
-
   function fillNames(products) {
     const partial = products.filter(p => p.partial);
     const chunks = [];
@@ -1500,13 +1502,14 @@
   // Order of the shelf dropdown first, then the largest quantities first.
   function sortBulkRows(rows) {
     const idx = s => { const i = shelfOrder.findIndex(x => sameShelf(x, s)); return i < 0 ? 1e9 : i; };
-    return rows.sort((a, b) => idx(a.shelf) - idx(b.shelf) || byShelf(a.shelf, b.shelf) || b.qty - a.qty || a.name.localeCompare(b.name));
+    return rows.sort((a, b) => idx(a.shelf) - idx(b.shelf) || byShelf(a.shelf, b.shelf) || (b.qty || 0) - (a.qty || 0) || a.name.localeCompare(b.name));
   }
 
   const plain = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // the PDF font has no ă î ș ț
 
   function makeBulkPdf(last) {
     const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+    const missing = last.missing || [];
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.text('Scadere stoc - lista de ridicat din raft', 14, 16);
@@ -1515,23 +1518,49 @@
     doc.text('NAME OF EMPLOYEE: ________________________________', 14, 27);
     doc.text('Date: ____________________', 14, 36);
     doc.setFontSize(10);
-    doc.text(last.pieces + ' buc - ' + last.rows.length + ' unique EANs', 14, 44);
+    doc.text(last.pieces + ' buc - ' + last.rows.length + ' unique EANs to take from the shelves' +
+             (missing.length ? '   |   ' + missing.length + ' not available (see the end of the list)' : ''), 14, 44);
     const made = last.stamp.slice(0, 4) + '-' + last.stamp.slice(4, 6) + '-' + last.stamp.slice(6, 8) + ' ' + last.stamp.slice(9, 11) + ':' + last.stamp.slice(11, 13);
-    doc.autoTable({
-      startY: 48,
-      head: [['EAN', 'NAME', 'SHELF', 'BUC']],
-      body: last.rows.map(r => [r.ean, plain(r.name), r.shelf || '-', String(r.qty)]),
-      styles: { fontSize: 9, cellPadding: 2, valign: 'middle' },
-      headStyles: { fillColor: [26, 86, 196] },
-      columnStyles: { 0: { cellWidth: 34 }, 2: { cellWidth: 24, fontStyle: 'bold' }, 3: { cellWidth: 18, halign: 'right', fontStyle: 'bold', fontSize: 12 } },
-      didDrawPage: () => {
-        doc.setFontSize(8);
-        doc.text('Generated ' + made + ' - page ' + doc.internal.getNumberOfPages(), 14, doc.internal.pageSize.getHeight() - 8);
-      }
-    });
+    const footer = () => {
+      doc.setFontSize(8);
+      doc.text('Generated ' + made + ' - page ' + doc.internal.getNumberOfPages(), 14, doc.internal.pageSize.getHeight() - 8);
+    };
+    let y = 48;
+    if (last.rows.length) {
+      doc.autoTable({
+        startY: y,
+        head: [['EAN', 'NAME', 'SHELF', 'BUC']],
+        body: last.rows.map(r => [r.ean, plain(r.name), r.shelf || '-', String(r.qty)]),
+        styles: { fontSize: 9, cellPadding: 2, valign: 'middle' },
+        headStyles: { fillColor: [26, 86, 196] },
+        columnStyles: { 0: { cellWidth: 34 }, 2: { cellWidth: 24, fontStyle: 'bold' }, 3: { cellWidth: 18, halign: 'right', fontStyle: 'bold', fontSize: 12 } },
+        didDrawPage: footer
+      });
+      y = doc.lastAutoTable.finalY;
+    } else {
+      doc.text('Nothing was available to take from the shelves.', 14, y + 4);
+      y += 8;
+      footer();
+    }
+    if (missing.length) {
+      // products that could not be subtracted because they are not available at the shelf
+      if (y > doc.internal.pageSize.getHeight() - 45) { doc.addPage(); y = 14; } else y += 12;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('NOT SUBTRACTED - not available at the shelf (' + missing.length + ')', 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.autoTable({
+        startY: y + 3,
+        head: [['EAN', 'NAME', 'SHELF', 'BUC', 'WHY']],
+        body: missing.map(r => [r.ean, plain(r.name), r.shelf || '-', r.qty == null ? '-' : String(r.qty), plain(r.note)]),
+        styles: { fontSize: 9, cellPadding: 2, valign: 'middle' },
+        headStyles: { fillColor: [200, 50, 40] },
+        columnStyles: { 0: { cellWidth: 32 }, 2: { cellWidth: 20 }, 3: { cellWidth: 14, halign: 'right', fontStyle: 'bold' }, 4: { cellWidth: 42 } },
+        didDrawPage: footer
+      });
+    }
     doc.save('Scadere-stoc-' + last.stamp + '.pdf');
   }
-
   async function bulkPdfAgain() {
     const last = load('wmsBulkLast', null);
     if (!last) { show('err', 'No previous subtraction to print.'); return; }
