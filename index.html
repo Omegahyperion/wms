@@ -1186,7 +1186,7 @@
     }
   }
 
-  function loadStock() {
+  function loadStock(done) { // done (optional): called when the answer, or the failure, has arrived
     lastLoad = Date.now();
     google.script.run
       .withSuccessHandler(res => {
@@ -1209,12 +1209,14 @@
         renderRecent();
         renderInv();
         setSync();
+        if (done) done(true);
       })
       .withFailureHandler(e => {
-        if (e.auth) return;
+        if (e.auth) { if (done) done(false); return; }
         $('sync').className = 'err';
         $('sync').textContent = 'Could not load stock';
         show('err', 'Could not load stock: ' + e.message);
+        if (done) done(false);
       })
       .getInit({ compact: true });
   }
@@ -1410,6 +1412,10 @@
       return;
     }
 
+    // the quantities must be the live ones, not the copy loaded some minutes ago (or not loaded at all)
+    show('info', 'Checking the current stock…');
+    if (!await new Promise(r => loadStock(r))) { show('err', 'Could not load the current stock, nothing was subtracted. Try again.'); return; }
+
     const lines = new Map();   // normalized EAN -> { ean, qty } (the same EAN on several rows is added up)
     const missing = [];        // lines that could not be subtracted: { ean, p?, name, shelf, qty, note }
     rows.forEach((r, i) => {
@@ -1439,9 +1445,12 @@
 
     const pieces = ok.reduce((s, x) => s + x.qty, 0);
     const missPieces = missing.reduce((s, x) => s + (x.qty || 0), 0);
+    const why = {};
+    missing.forEach(m => { const k = m.note.replace(/^Asked.*/, 'Asked more than available').replace(/^Row .*/, 'Not valid rows'); why[k] = (why[k] || 0) + 1; });
+    const whyText = Object.keys(why).map(k => esc(k) + ': ' + why[k]).join(' · ');
     const miss = missing.length
       ? '<br><br><b>' + missing.length + ' line' + (missing.length === 1 ? '' : 's') + (missPieces ? ' (' + missPieces + ' buc)' : '') +
-        '</b> not available at the shelf: not subtracted, listed at the end of the PDF.'
+        '</b> not available at the shelf: not subtracted, listed at the end of the PDF.<div class="sub">' + whyText + '</div>'
       : '';
     const what = ok.length ? 'Subtract <b>' + pieces + ' buc</b> on <b>' + ok.length + ' unique EANs</b> from stock?' : '<b>Nothing</b> in this file is available at the shelf.';
     ask(ok.length ? 'ask' : 'warn', what + miss + '<div class="sub">' + esc(file.name) + '</div>',
