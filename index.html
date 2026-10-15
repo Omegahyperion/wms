@@ -102,6 +102,15 @@
   .scanbtn.busy { background: #11692f; }
 
   /* Questions (YES / NO, or several choices) */
+  #loading { background: rgba(244,245,247,.98); z-index: 20; }
+  .loadbox { text-align: center; max-width: 320px; }
+  .spinner { width: 64px; height: 64px; margin: 0 auto 18px; border: 7px solid #d5d8de; border-top-color: #1a56c4; border-radius: 50%; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loadtitle { font-size: 22px; font-weight: 800; color: #111; }
+  .loadsec { font-size: 28px; font-weight: 900; color: #1a56c4; margin: 6px 0; }
+  .loadhint { font-size: 14px; color: #555; }
+  .loaderr { margin-top: 12px; font-weight: 700; color: #c5221f; min-height: 20px; }
+  .scanbtn:disabled { opacity: .5; }
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
   .dlgbox { background: #fff; border-radius: 12px; padding: 18px; width: 100%; max-width: 440px; box-shadow: 0 8px 30px rgba(0,0,0,.3); outline: none;
             max-height: 92vh; overflow-y: auto; }
@@ -284,8 +293,19 @@
     </div>
   </div>
 
-  <h2>Last 5 stock changes</h2>
+  <h2>My last 5 scans</h2>
   <ul id="recent"><li class="empty">Loading…</li></ul>
+</div>
+
+<!-- shown until the inventory is loaded and scanning is possible -->
+<div id="loading" class="overlay" hidden>
+  <div class="loadbox">
+    <div class="spinner"></div>
+    <div class="loadtitle">Loading inventory…</div>
+    <div id="loadingSec" class="loadsec">0 s</div>
+    <div class="loadhint">Please wait. You can scan as soon as this screen disappears.</div>
+    <div id="loadingErr" class="loaderr"></div>
+  </div>
 </div>
 
 <!-- employee login -->
@@ -457,9 +477,36 @@
   let refreshTimer = null;
   let lastLoad = 0;
 
+  // Scanning is only possible once the whole inventory has arrived (the first load can take a while).
+  let ready = false, loadingTimer = null, retryTimer = null, loadingSince = 0;
+  function showLoading() {
+    ready = false;
+    loadingSince = Date.now();
+    $('loadingErr').textContent = '';
+    $('loadingSec').textContent = '0 s';
+    $('loading').hidden = false;
+    clearInterval(loadingTimer);
+    loadingTimer = setInterval(() => { $('loadingSec').textContent = Math.round((Date.now() - loadingSince) / 1000) + ' s'; }, 500);
+  }
+  function hideLoading() {
+    clearInterval(loadingTimer);
+    clearTimeout(retryTimer);
+    $('loading').hidden = true;
+  }
+  function initialLoad() {
+    loadStock(ok => {
+      if (ok) { ready = true; hideLoading(); focusScan(); return; }
+      if (!session.token) { hideLoading(); return; } // logged out meanwhile: the login screen is showing
+      $('loadingErr').textContent = 'Could not load the inventory. Trying again…';
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(initialLoad, 5000);
+    });
+  }
+
   function startApp() {
     $('whoName').textContent = session.user || '-';
-    loadStock();
+    showLoading();
+    initialLoad();
     clearInterval(refreshTimer);
     refreshTimer = setInterval(() => {
       if (document.hidden) return;
@@ -471,6 +518,8 @@
 
   function stopApp() {
     clearInterval(refreshTimer);
+    hideLoading();
+    ready = false;
     stock = {};
     restIndex = {};
     recent = [];
@@ -835,6 +884,7 @@
 
   // A question or the new-product form is open: scans are not accepted until it is answered.
   function blocked() {
+    if (!ready) return true; // the inventory is still loading
     if (!$('dlg').hidden) { $('dlgBox').focus(); return true; }
     if (!$('newBox').hidden) { show('err', 'Finish or cancel the new product first.'); return true; }
     return false;
@@ -855,6 +905,25 @@
        { label: 'NO', cls: 'sec', fn: () => { show('info', 'Not added. EAN ' + ean + ' was ignored.'); focusScan(); } }]);
   }
 
+  // After the wrong-shelf pop-up put the product's original shelf back in the selector, the next scan first asks
+  // the employee to confirm the shelf now selected (so the following products are not counted on it by mistake).
+  let confirmShelf = false;
+  function askConfirmShelf(ean, d, shelf) {
+    ask('ask',
+      'Raftul selectat acum este <span class="big">' + esc(shelf) + '</span><br><br>' +
+      'Confirmi că scanezi acum produsele de pe raftul <b>' + esc(shelf) + '</b>?',
+      [{ label: 'DA, scanez pe raftul ' + shelf, cls: 'yes', fn: () => {
+           confirmShelf = false;
+           if (stockScan(ean, d)) afterManualScan();
+           focusScan();
+         } },
+       { label: 'NU, aleg alt raft', cls: 'sec', fn: () => {
+           confirmShelf = false;
+           show('info', 'Alege raftul corect, apoi scanează din nou.');
+           $('shelf').focus();
+         } }]);
+  }
+
   function askWrongShelf(p, selected, d) {
     ask('warn',
       '<span class="prod">' + esc(p.name || (p.partial ? '…' : '(no name)')) + '</span>' +
@@ -865,6 +934,7 @@
       'cantitatea din acest produs.</div>',
       [{ label: 'Setează raftul original ' + p.location + ' – apoi RESCANEZ', cls: 'yes', fn: () => {
            setSelect($('shelf'), p.location.trim());
+           confirmShelf = true; // the next scan asks to confirm this shelf
            markShelf();
            show('info', 'Raftul ' + p.location + ' a fost setat mai sus. RESCANEAZĂ produsul acum.');
            $('ean').focus();
@@ -879,11 +949,23 @@
   // ---------- +1 / -1 / MANUAL ----------
 
   // Called when the EAN field holds a complete code (Enter, Tab, auto-delay or camera).
+  // Two scans must be at least 1 second apart (double taps, slow phones): a scan that comes too soon is ignored.
+  const SCAN_GAP_MS = 1000;
+  let lastScanAt = 0;
+  function scanGate() {
+    const now = Date.now();
+    if (now - lastScanAt < SCAN_GAP_MS) return false;
+    lastScanAt = now;
+    $('scanBtn').disabled = true;
+    setTimeout(() => { $('scanBtn').disabled = false; }, SCAN_GAP_MS);
+    return true;
+  }
+
   function eanEntered() {
     clearTimeout(autoTimer);
     const ean = $('ean').value.trim();
     if (!ean) return;
-    if (blocked()) { $('ean').value = ''; return; }
+    if (blocked() || !scanGate()) { $('ean').value = ''; return; }
     $('ean').value = '';
     let d = mode === 'add' ? 1 : -1;
     if (mode === 'manual') {
@@ -937,6 +1019,7 @@
     let sel = $('shelf').value;
     if (d < 0 && p && p.location.trim()) sel = p.location.trim();
     if (!sel && d >= 0) { show('err', 'Select a raft first.'); markShelf(); $('shelf').focus(); return false; }
+    if (confirmShelf && d >= 0) { askConfirmShelf(ean, d, sel); return false; }
 
     if (!p) {
       askAddProduct(ean, d > 0 ? d : 0, sel);
@@ -1597,6 +1680,7 @@
   }
 
   function checkScan(ean) {
+    if (!scanGate()) return;
     const key = norm(ean), p = productFor(ean), seq = ++checkSeq;
     if (p) showCheck(p); else show('info', 'Searching EAN ' + ean + '…');
     google.script.run
@@ -1655,6 +1739,7 @@
   }
 
   function invScan(ean) {
+    if (!scanGate()) return;
     if (!inv.shelf) { show('err', 'Select the raft to count first.'); $('invShelf').focus(); return; }
     if (inv.phase === 'review') { show('err', 'Press "Back to counting" to scan more.'); return; }
     const raw = $('invQty').value.trim();
@@ -1820,6 +1905,7 @@
   $('manualQty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); manualApply(); } });
   $('invQty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('invEan').focus(); } });
   $('shelf').addEventListener('change', () => {
+    confirmShelf = false; // the shelf was chosen on purpose
     markShelf();
     if ($('shelf').value) { show('info', 'Raft ' + $('shelf').value + ' selected. Scan EAN.'); focusScan(); }
   });
