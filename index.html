@@ -1025,7 +1025,8 @@
       askAddProduct(ean, d > 0 ? d : 0, sel);
       return false;
     }
-    if (p.location.trim() && !sameShelf(p.location, sel)) {
+    // Only a product with stock (> 0) belongs to its old shelf; with 0 in stock the scan simply moves it to the selected shelf.
+    if (p.location.trim() && !sameShelf(p.location, sel) && p.qty > 0) {
       showProduct(p);
       show('err', 'Wrong raft: ' + label(p) + ' is stored on raft ' + p.location + '.');
       send({ id: ++seq, ean: p.ean, d: d, loc: sel, applied: false }); // logged as REJECTED
@@ -1045,11 +1046,12 @@
   function applyStockScan(p, d, sel, prefix) {
     const job = { id: ++seq, ean: p.ean, d: d, loc: sel, applied: true };
     const before = p.qty, after = before + d;
-    const locSet = !p.location.trim();
+    const prevLoc = p.location;
+    const locSet = !p.location.trim() || (before === 0 && !sameShelf(p.location, sel)); // no shelf yet, or 0 in stock on another one
     job.locSet = locSet;
     if (locSet) p.location = sel;
     p.qty = after;
-    pushUndo({ id: job.id, ean: p.ean, d: d, locSet: locSet, prevLoc: '' });
+    pushUndo({ id: job.id, ean: p.ean, d: d, locSet: locSet, prevLoc: locSet ? prevLoc : '' });
     showProduct(p);
     const q = x => '<span class="q">' + esc(x) + '</span>';
     const q2 = x => '<span class="q q2">' + esc(x) + '</span>'; // initial quantity: a little smaller
