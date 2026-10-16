@@ -354,31 +354,38 @@
     return err;
   }
 
-  async function sendRequest(body, asGet) {
+  // signal: lets a request that gets no answer at all (phone woke up with a dead connection, Google stuck) be abandoned.
+  async function sendRequest(body, asGet, signal) {
     try {
       if (asGet) {
-        return await fetch(API_URL + '?q=' + encodeURIComponent(JSON.stringify(body)), { cache: 'no-store' });
+        return await fetch(API_URL + '?q=' + encodeURIComponent(JSON.stringify(body)), { cache: 'no-store', signal: signal });
       }
       // text/plain keeps this a "simple" request, which Google accepts from another website.
       return await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(body),
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: signal
       });
     } catch (e) {
-      throw transportError('No connection to Google (' + e.message + ').');
+      throw transportError(e.name === 'AbortError' ? 'No answer from Google (timed out).' : 'No connection to Google (' + e.message + ').');
     }
   }
 
-  async function post(body) {
-    let res = await sendRequest(body, useGet);
-    let text = await res.text();
+  async function readText(res) {
+    try { return await res.text(); }
+    catch (e) { throw transportError(e.name === 'AbortError' ? 'No answer from Google (timed out).' : 'Connection lost while reading the answer.'); }
+  }
+
+  async function post(body, signal) {
+    let res = await sendRequest(body, useGet, signal);
+    let text = await readText(res);
     if (!useGet && text.indexOf('Mini WMS API is running') >= 0) {
       useGet = true;
       try { localStorage.setItem('wmsUseGet', '1'); } catch (e) {}
-      res = await sendRequest(body, true);
-      text = await res.text();
+      res = await sendRequest(body, true, signal);
+      text = await readText(res);
     }
     try {
       return JSON.parse(text);
@@ -391,16 +398,26 @@
     }
   }
 
+  let initAbort = null;     // the running stock load, so the loading screen can restart it
   async function apiCall(action, args) {
     const body = { action: action, args: args, token: session.token };
     let data;
+    // A request without any answer is abandoned after a while and tried again (the stock load is slow when Google starts cold,
+    // but never takes minutes). Saving changes is safe to repeat: the same batch id is recognised by the server.
+    const timeoutMs = action === 'getInit' ? 60000 : 120000;
+    const attempt = () => {
+      const ac = new AbortController();
+      if (action === 'getInit') initAbort = ac;
+      const timer = setTimeout(() => ac.abort(), timeoutMs);
+      return post(body, ac.signal).finally(() => clearTimeout(timer));
+    };
     try {
-      data = await post(body);
+      data = await attempt();
     } catch (e) {
       // Loading the stock changes nothing, so it is safe to try once more after a short pause.
       if (action !== 'getInit') throw e;
       await new Promise(r => setTimeout(r, 1500));
-      data = await post(body);
+      data = await attempt();
     }
     if (!data.ok) {
       if (data.auth) showLogin(data.error);
@@ -486,7 +503,11 @@
     $('loadingSec').textContent = '0 s';
     $('loading').hidden = false;
     clearInterval(loadingTimer);
-    loadingTimer = setInterval(() => { $('loadingSec').textContent = Math.round((Date.now() - loadingSince) / 1000) + ' s'; }, 500);
+    loadingTimer = setInterval(() => {
+      const s = Math.round((Date.now() - loadingSince) / 1000);
+      $('loadingSec').textContent = s + ' s';
+      if (s > 45 && !$('loadingErr').textContent) $('loadingErr').textContent = 'Taking longer than usual. Trying again automatically…';
+    }, 500);
   }
   function hideLoading() {
     clearInterval(loadingTimer);
@@ -1236,6 +1257,8 @@
     audio();
     if (pending.length || inFlight.length) retryNow();
     if (session.token && Date.now() - lastLoad > REFRESH_MS) loadStock();
+    // back on the page while the loading screen is up and nothing has arrived for a while: the request is probably dead
+    if (!$('loading').hidden && initAbort && Date.now() - loadingSince > 15000) initAbort.abort();
   });
 
   function handleResult(job, r) {
