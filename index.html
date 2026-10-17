@@ -165,7 +165,7 @@
 <div class="wrap">
   <div class="top"><h1>Mini WMS</h1><span id="sync" class="saving">Loading stock…</span></div>
   <div id="verBanner" hidden></div>
-  <div class="who"><span>Logged in as <b id="whoName">-</b> <span style="color:#555;font-size:11px">· page 16.10-a</span></span>
+  <div class="who"><span>Logged in as <b id="whoName">-</b> <span style="color:#555;font-size:11px">· page 17.10-c</span></span>
     <span><button class="linkbtn sound" onclick="testSound()">🔊 Test sound</button>
     <button class="linkbtn" onclick="logout()">Logout</button></span></div>
 
@@ -529,6 +529,12 @@
     staleBatch = null;
     const n = b.jobs.length;
     const when = b.at ? new Date(b.at).toLocaleString() : 'cu mult timp în urmă';
+    // A mass subtraction from a file is never sent again from an old queue: it is deleted, the player is only informed.
+    if (b.jobs.every(j => j.pick)) {
+      ask('warn', 'Pe acest telefon rămăsese o <b>scădere veche din fișier</b> (' + n + ' linii, ' + esc(when) + ') care nu primise confirmare.<br><br>' +
+        'A fost <b>ștearsă</b>, ca să nu scadă stocul a doua oară. Dacă lipsește în Log, încarcă fișierul din nou.', [{ label: 'OK', cls: 'yes' }]);
+      return;
+    }
     ask('warn',
       'Pe acest telefon au rămas <b>' + n + ' modificări de stoc</b> trimise ' + esc(when) + ', fără confirmare de la server.<br><br>' +
       'Probabil au fost deja salvate. Trimise a doua oară, ar scădea sau ar adăuga stocul încă o dată.' +
