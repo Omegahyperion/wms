@@ -165,7 +165,7 @@
 <div class="wrap">
   <div class="top"><h1>Mini WMS</h1><span id="sync" class="saving">Loading stock…</span></div>
   <div id="verBanner" hidden></div>
-  <div class="who"><span>Logged in as <b id="whoName">-</b> <span style="color:#555;font-size:11px">· page 17.10-c</span></span>
+  <div class="who"><span>Logged in as <b id="whoName">-</b> <span style="color:#555;font-size:11px">· page 18.10-a</span></span>
     <span><button class="linkbtn sound" onclick="testSound()">🔊 Test sound</button>
     <button class="linkbtn" onclick="logout()">Logout</button></span></div>
 
@@ -177,7 +177,7 @@
     <button data-mode="inv" class="wide" onclick="setMode('inv')">MOD INVENTAR</button>
   </div>
   <!-- mass subtraction from an Excel/CSV file (EAN | quantity) -->
-  <div id="bulkBox">
+  <div id="bulkBox" hidden>
     <button class="btn bulk" type="button" onclick="$('bulkFile').click()">Scadere stoc cu fisier</button>
     <input type="file" id="bulkFile" accept=".xlsx,.xls,.csv" hidden>
     <button id="bulkPdfBtn" class="btn sec bulk" type="button" hidden onclick="bulkPdfAgain()">Descarcă din nou PDF-ul ultimei scăderi</button>
@@ -428,6 +428,11 @@
       err.transport = /lock|blocarea|blocare/i.test(data.error || '');
       throw err;
     }
+    if (typeof data.bulk === 'boolean' && data.bulk !== !!session.bulk) { // permission changed in the employee list
+      session.bulk = data.bulk;
+      try { localStorage.setItem('wmsSession', JSON.stringify(session)); } catch (e) {}
+      showPermissions();
+    }
     if (data.user && data.user !== session.user) { // name corrected in the employee list
       session.user = data.user;
       $('whoName').textContent = data.user;
@@ -468,7 +473,7 @@
     try {
       const res = await post({ action: 'login', code: code });
       if (!res.ok) { $('loginMsg').textContent = res.error; return; }
-      session = { token: res.token, user: res.user };
+      session = { token: res.token, user: res.user, bulk: !!res.bulk };
       try { localStorage.setItem('wmsSession', JSON.stringify(session)); } catch (e) {}
       $('login').hidden = true;
       startApp();
@@ -542,8 +547,12 @@
       [{ label: 'ȘTERGE (recomandat)', cls: 'yes', fn: () => show('info', n + ' modificări vechi au fost șterse de pe telefon.') },
        { label: 'TRIMITE oricum', cls: 'move', fn: () => { b.jobs.forEach(j => pending.push(j)); saveQueue(); setSync(); flush(); } }]);
   }
+  // "Scadere stoc cu fisier" is only offered to employees with "Import in masa = DA" in the employee list (the server checks it too).
+  function showPermissions() { $('bulkBox').hidden = !session.bulk; }
+
   function startApp() {
     $('whoName').textContent = session.user || '-';
+    showPermissions();
     showLoading();
     initialLoad();
     clearInterval(refreshTimer);
@@ -557,6 +566,7 @@
 
   function stopApp() {
     clearInterval(refreshTimer);
+    $('bulkBox').hidden = true;
     hideLoading();
     ready = false;
     stock = {};
@@ -1541,6 +1551,7 @@
 
   async function bulkFromFile(file) {
     if (blocked()) return;
+    if (!session.bulk) { show('err', 'Nu ai permisiunea pentru scădere în masă din fișier.'); return; }
     show('info', 'Reading ' + file.name + '…');
     let rows;
     try {
