@@ -168,7 +168,7 @@
 <div class="wrap">
   <div class="top"><h1>Mini WMS</h1><span id="sync" class="saving">Loading stock…</span></div>
   <div id="verBanner" hidden></div>
-  <div class="who"><span>Logged in as <b id="whoName">-</b> <span style="color:#555;font-size:11px">· page 25.11-a</span></span>
+  <div class="who"><span>Logged in as <b id="whoName">-</b> <span style="color:#555;font-size:11px">· page 26.11-a</span></span>
     <span><button class="linkbtn sound" onclick="testSound()">🔊 Test sound</button>
     <button class="linkbtn" onclick="logout()">Logout</button></span></div>
 
@@ -1636,9 +1636,11 @@
     const d = new Date(), two = n => String(n).padStart(2, '0');
     const stamp = d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate()) + '-' + two(d.getHours()) + two(d.getMinutes()) + two(d.getSeconds());
     const orderId = 'FISIER-' + stamp;
-    list.forEach(({ p, qty }) => {
+    list.forEach(item => {
+      const p = item.p, qty = item.qty;
       const job = { id: ++seq, pick: true, ean: p.ean, d: -qty, orderId: orderId, applied: true };
       const before = p.qty;
+      item.before = before; // pieces on the shelf before this subtraction: the pick list shows "3 din 10"
       p.qty = before - qty;
       addRecent(recentEntry(job.id, p, 'PICK', -qty, before, p.qty, true));
       pending.push(job);
@@ -1651,7 +1653,7 @@
     await fillNames(list.map(x => x.p).concat(missing.filter(m => m.p).map(m => m.p)));
     missing.forEach(m => { if (m.p) { m.name = m.p.name || ''; m.shelf = m.p.location.trim(); } });
     const last = { stamp: stamp, pieces: pieces,
-      rows: sortBulkRows(list.map(({ p, qty }) => ({ ean: p.ean, name: p.name || '', shelf: p.location.trim(), qty: qty }))),
+      rows: sortBulkRows(list.map(({ p, qty, before }) => ({ ean: p.ean, name: p.name || '', shelf: p.location.trim(), qty: qty, before: before }))),
       missing: sortBulkRows(missing.map(m => ({ ean: m.ean, name: m.name, shelf: m.shelf, qty: m.qty, note: m.note }))) };
     keep('wmsBulkLast', last);
     $('bulkPdfBtn').hidden = false;
@@ -1714,10 +1716,11 @@
       doc.autoTable({
         startY: y,
         head: [['EAN', 'NAME', 'SHELF', 'BUC']],
-        body: last.rows.map(r => [r.ean, plain(r.name), r.shelf || '-', String(r.qty)]),
+        // BUC = pieces to take from the shelf out of the pieces on the shelf: "3 din 10" (older saved lists only have the first number)
+        body: last.rows.map(r => [r.ean, plain(r.name), r.shelf || '-', r.before != null ? r.qty + ' din ' + r.before : String(r.qty)]),
         styles: { fontSize: 9, cellPadding: 2, valign: 'middle' },
         headStyles: { fillColor: [26, 86, 196] },
-        columnStyles: { 0: { cellWidth: 34 }, 2: { cellWidth: 24, fontStyle: 'bold' }, 3: { cellWidth: 18, halign: 'right', fontStyle: 'bold', fontSize: 12 } },
+        columnStyles: { 0: { cellWidth: 34 }, 2: { cellWidth: 24, fontStyle: 'bold' }, 3: { cellWidth: 30, halign: 'right', fontStyle: 'bold', fontSize: 11 } },
         didDrawPage: footer
       });
       y = doc.lastAutoTable.finalY;
