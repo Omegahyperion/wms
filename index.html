@@ -156,7 +156,9 @@
   .otable .br { font-size: 12px; color: #1a56c4; font-weight: 600; }
   .otable .plus { color: #1e9e48; } .otable .minus { color: #d93025; }
   .otable.inv tr[data-key] { cursor: pointer; }
-  .otable .edit { color: #1a56c4; font-size: 13px; margin-left: 4px; }
+  /* the pencil is a clear blue button, easy to see and to hit with a thumb */
+  .otable .edit { display: inline-block; color: #fff; background: #1a56c4; font-size: 24px; line-height: 1; padding: 6px 9px; border-radius: 9px; margin-left: 10px; vertical-align: middle; }
+  .otable.inv td.num { white-space: nowrap; font-size: 18px; }
   #qtyDlg { z-index: 11; }
   .otable td.stoc { text-align: right; white-space: nowrap; font-size: 13px; }
   .otable td.stoc b { font-size: 20px; font-weight: 900; color: #222; }
@@ -168,7 +170,7 @@
 <div class="wrap">
   <div class="top"><h1>Mini WMS</h1><span id="sync" class="saving">Loading stock…</span></div>
   <div id="verBanner" hidden></div>
-  <div class="who"><span>Logged in as <b id="whoName">-</b> <span style="color:#555;font-size:11px">· page 26.11-a</span></span>
+  <div class="who"><span>Logged in as <b id="whoName">-</b> <span style="color:#555;font-size:11px">· page 27.11-a</span></span>
     <span><button class="linkbtn sound" onclick="testSound()">🔊 Test sound</button>
     <button class="linkbtn" onclick="logout()">Logout</button></span></div>
 
@@ -294,7 +296,7 @@
       <button class="btn yes big" id="applyInvBtn" onclick="applyInv()">APPLY CORRECTIONS</button>
       <button class="btn sec" onclick="backToCount()">Back to counting</button>
     </div>
-    <div class="hint" id="invHint">Atinge o linie ca să corectezi cantitatea numărată (✎).</div>
+    <div class="hint" id="invHint">Atinge o linie sau creionul albastru ca să corectezi cantitatea numărată.</div>
     <button id="invPdfBtn" class="btn sec" style="width:100%;margin-top:10px" type="button" hidden onclick="invPdfAgain()">Descarcă PDF-ul ultimului inventar</button>
     <a id="invPdfLink" class="hint" style="display:block;margin-top:6px" target="_blank" rel="noopener" hidden>Raportul e salvat în Drive – deschide</a>
   </div>
